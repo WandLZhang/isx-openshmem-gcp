@@ -84,7 +84,32 @@ the simple explanation is now unlikely, which leaves hard polling as the leading
 candidate.
 
 Testing a different node pair is still worth doing and needs a cluster larger than two
-nodes to do properly.
+nodes to do properly, which is currently blocked by
+`BLOCKER_quota_cpus_per_vm_family.md`.
+
+### Manual progress was tried and made it worse
+
+`--enable-ofi-manual-progress` was the leading hypothesis: SOS requests
+`FI_PROGRESS_AUTO` by default, the verbs provider is conventionally manual-progress, and a
+provider that advertises auto without genuinely driving it would produce exactly these
+stalled completions. A bisect had already confirmed the provider accepts
+`FI_PROGRESS_MANUAL`.
+
+Rebuilt with the flag (`#define ENABLE_FI_MANUAL_PROGRESS 1` confirmed in `src/config.h`)
+and re-tested, 3 attempts per point:
+
+| PEs/node | total PEs | passed |
+|---:|---:|---|
+| 32 | 64 | **0/3** |
+| 48 | 96 | **0/3** |
+
+32 PEs per node passed intermittently before this change and never passed after it. The
+flag is a regression, not a fix, and the build has been reverted to
+`--enable-ofi-mr=basic --enable-hard-polling`.
+
+That leaves the completion-progress hypothesis intact but unexplained: the stall is not
+resolved by having SOS drive progress explicitly, which points at the provider or NIC
+rather than at SOS's polling strategy.
 
 ## Reproducing
 
