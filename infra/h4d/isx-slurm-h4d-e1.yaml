@@ -24,7 +24,7 @@ vars:
     # Rocky 9: slurm-gcp-6-12-hpc-rocky-linux-9
     family: slurm-gcp-6-12-hpc-rocky-linux-9
     project: schedmd-slurm-public
-  h4d_cluster_size: 2   # ISX64: 2 nodes is enough to prove cross-node one-sided RMA
+  h4d_cluster_size: 2   # ISX64: bound by CPUS_PER_VM_FAMILY=500 (H4D), not CPUS=3000. 500/192 = 2 nodes
 
   #Provisioning model, select one, lack of selection will rely on on-demand capacity
   h4d_reservation_name: ""

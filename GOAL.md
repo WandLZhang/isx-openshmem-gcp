@@ -65,7 +65,7 @@ Tracked honestly. See `results/` for the underlying measurements.
 |---|---|
 | OpenSHMEM PGAS, no MPI | **met.** SOS 1.5.3 on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
 | RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive. `FI_RMA_EVENT` and `FI_FENCE` unsupported; both have configure workarounds |
-| >= 4,096 endpoints | **not met.** 64 PEs on 2 nodes. Capped at 32 PEs/node by an OFI retry wall |
+| >= 4,096 endpoints | **not met, quota-blocked.** 64 PEs on 2 nodes. `CPUS_PER_VM_FAMILY` for H4D is 500/region = 2 nodes, and self-service override is refused. Needs 24,576. `results/BLOCKER_quota_cpus_per_vm_family.md` |
 | > 1 PB in-memory | **not met, and blocked.** 2.00 GB largest verified run. Symmetric heap caps at ~2 GB/PE, see `results/BLOCKER_symmetric_heap_20260814.md` |
 | Correctness validation | **met when runs complete.** PASSED at 16, 32, 64 PEs, but each was a single sample against a ~30% success rate |
 | Reproducibility | **not met, quantified.** 10 identical runs at 32 PEs: 2 of 7 completed passed (~30%). Timing is tight when it completes (0.213 vs 0.214 s); failure is binary. `results/BLOCKER_reproducibility_20260814.md` |

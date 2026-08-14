@@ -197,6 +197,15 @@ echo "==> compact placement policy"
 gcloud compute resource-policies create group-placement "${RDMA_PREFIX}-compact" \
   --project="${PROJECT}" --region="${REGION}" --collocation=COLLOCATED || true
 
+echo "==> the quota that actually binds H4D (NOT the general CPUS quota)"
+# CPUS_PER_VM_FAMILY defaults to 500 per region. h4d-highmem-192 is 192 vCPU, so that is
+# 2 nodes, regardless of a CPUS quota in the thousands. Self-service override is capped at
+# 500, so growing past 2 nodes needs a quota request through support.
+gcloud alpha services quota list --service=compute.googleapis.com \
+  --consumer=projects/${PROJECT} --filter="metric:cpus_per_vm_family" 2>/dev/null \
+  | grep -iA2 "H4D" | head -6 || echo "    (could not read; check manually)"
+echo "    500 / 192 vCPU = 2 nodes. For 128 nodes request 24576."
+
 cat <<EOF
 
 Done. Verify before building the cluster:
