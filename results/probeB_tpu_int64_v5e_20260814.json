@@ -1,0 +1,36 @@
+{
+  "_note": "Probe B, run 2026-08-14 on a 4-chip TPU v5e slice (v5litepod-4, 2x2) in us-west4-a via GKE Autopilot. Verdict GO. Run on v7x before Phase 2; v5e was used because it was already provisioned and the int64 question is an XLA:TPU backend question rather than a generation-specific one.",
+  "jax_version": "0.9.0",
+  "platform": "tpu",
+  "device_kind": "TPU v5 lite",
+  "n_devices": 4,
+  "keys_per_device": 4194304,
+  "q1_dtype_on_device": "uint64",
+  "q1_x64_real": true,
+  "q4_roundtrip_expected": [
+    4294967297,
+    1099511640121,
+    4503599627370489,
+    1152921504606846975,
+    9223372036854775807
+  ],
+  "q4_roundtrip_got": [
+    4294967297,
+    1099511640121,
+    4503599627370489,
+    1152921504606846975,
+    9223372036854775807
+  ],
+  "q4_preserves_high_bits": true,
+  "q2_sort_uint64_s": 0.01018128059999981,
+  "q2_sort_uint64_ordered": true,
+  "q2_sort_int32_s": 0.006863071800000853,
+  "q2_uint64_penalty_x": 1.4834874086554863,
+  "q3_all_to_all_s": 0.0005752442000016344,
+  "q3_all_to_all_GBps": 174.99228327676138,
+  "q3_all_to_all_dtype": "uint64",
+  "q3_all_to_all_ok": true,
+  "q3_sum_preserved": true,
+  "blockers": [],
+  "verdict": "GO"
+}
