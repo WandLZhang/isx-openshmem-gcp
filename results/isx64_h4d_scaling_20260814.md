@@ -24,6 +24,11 @@ The build required two non-default flags, both forced by the fabric. See
 --enable-hard-polling     drops FI_RMA_EVENT, which verbs;ofi_rxm does not support
 ```
 
+> **Read with the reproducibility result.** Every row below is a **single sample**. A
+> later test of 10 identical runs at 32 PEs passed only 2 of 7 completed attempts. At a
+> ~30% success rate a single PASS is a lucky draw, not a characterisation. See
+> `BLOCKER_reproducibility_20260814.md`.
+
 ## ISx64 weak scaling
 
 4,194,304 keys per PE (2^22), 2 nodes, 2 timed iterations after burn-in.

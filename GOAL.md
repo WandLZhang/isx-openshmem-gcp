@@ -67,11 +67,11 @@ Tracked honestly. See `results/` for the underlying measurements.
 | RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive. `FI_RMA_EVENT` and `FI_FENCE` unsupported; both have configure workarounds |
 | >= 4,096 endpoints | **not met.** 64 PEs on 2 nodes. Capped at 32 PEs/node by an OFI retry wall |
 | > 1 PB in-memory | **not met, and blocked.** 2.00 GB largest verified run. Symmetric heap caps at ~2 GB/PE, see `results/BLOCKER_symmetric_heap_20260814.md` |
-| Correctness validation | **met at small scale.** PASSED at 16, 32 and 64 PEs cross-node |
-| Reproducibility | **not met.** 8 PEs passed standalone and failed in-sweep; jitter uncharacterised |
+| Correctness validation | **met when runs complete.** PASSED at 16, 32, 64 PEs, but each was a single sample against a ~30% success rate |
+| Reproducibility | **not met, quantified.** 10 identical runs at 32 PEs: 2 of 7 completed passed (~30%). Timing is tight when it completes (0.213 vs 0.214 s); failure is binary. `results/BLOCKER_reproducibility_20260814.md` |
 | Performance stability / inflection points | **met.** Three identified: 32 PEs/node ceiling, all2all crossover at 64 PEs, low-PE jitter |
 | Deliverable 1, source code | **met.** ISx64 uint64 port, `src/isx64`, plus the two SOS build flags H4D requires |
 | Deliverable 2, provisioning recipe | **met and exercised.** `infra/h4d`, deployed end to end in a clean project |
 | Deliverable 3, execution artifacts | **partial.** TTS and phase breakdown captured; no network or memory-bandwidth telemetry |
-| Deliverable 4, architectural narrative | **not started** |
+| Deliverable 4, architectural narrative | **met.** `docs/architecture.md` |
 | Deliverable 5, failure analysis | **in progress.** `results/`, including one retracted claim |
