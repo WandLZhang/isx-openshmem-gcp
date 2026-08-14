@@ -29,33 +29,87 @@ gcloud services enable \
   --project="${PROJECT}"
 
 # ---------------------------------------------------------------------------------
-# Org policy overrides.
+# Org policy: return this project to Google defaults.
+#
+# A default-hardened sandbox org inherits constraints that were written for shared
+# multi-tenant projects. Several of them block an HPC RDMA cluster, and their failure
+# messages do not name the constraint, so the debugging cost is high and repeated.
+# Rather than guess which ones bite, reset the whole set on this project.
+#
+# `gcloud org-policies reset` sets a project-level policy of `reset: true`, which
+# restores the Google default and ignores inheritance. Scope is this project only; the
+# org and every other project are untouched.
 #
 # Setting these needs orgpolicy.policy.set. In some orgs that permission cannot be
-# granted through a custom role, so this may have to be run by an org admin. Each
-# override is scoped to this project alone.
+# granted through a custom role, so an org admin may have to run this section.
+#
+# The one that is non-negotiable is compute.trustedImageProjects. Cloud RDMA requires
+# the HPC VM image from cloud-hpc-image-public, and if that project is not allowed the
+# instance create fails on image access, which reads like an IAM problem.
 # ---------------------------------------------------------------------------------
-echo "==> org policy: allow the HPC VM image (the blocker)"
-cat > /tmp/trusted_images.yaml <<EOF
-name: projects/${PROJECT}/policies/compute.trustedImageProjects
-spec:
-  inheritFromParent: true
-  rules:
-    - values:
-        allowedValues:
-          - projects/cloud-hpc-image-public
-EOF
-gcloud org-policies set-policy /tmp/trusted_images.yaml --project="${PROJECT}" || {
-  echo "FAILED to set trustedImageProjects." >&2
-  echo "H4D cannot boot without projects/cloud-hpc-image-public. Ask an org admin." >&2
+RESET_CONSTRAINTS=(
+  # Hard blocker for H4D: the HPC VM image lives in cloud-hpc-image-public.
+  compute.trustedImageProjects
+  # H4D takes 2 to 10 vNICs; multi-NIC setups trip IP forwarding restrictions.
+  compute.vmCanIpForward
+  # Debugging an RDMA fabric without a serial console is painful and slow.
+  compute.disableSerialPortAccess
+  # Login and controller nodes, and any IAP path.
+  compute.vmExternalIpAccess
+  compute.requireOsLogin
+  compute.requireShieldedVm
+  # Cluster Toolkit builds its own networks and may peer them.
+  compute.restrictVpcPeering
+  compute.skipDefaultNetworkCreation
+  compute.restrictSharedVpcSubnetworks
+  compute.restrictSharedVpcHostProjects
+  # Slurm health checks and startup scripts read guest attributes.
+  compute.disableGuestAttributesAccess
+  # Filestore and any internal load balancer the toolkit creates.
+  compute.restrictLoadBalancerCreationForTypes
+  compute.restrictProtocolForwardingCreationForTypes
+  # Service accounts for the controller and compute nodes.
+  iam.disableServiceAccountKeyCreation
+  iam.disableServiceAccountCreation
+  iam.automaticIamGrantsForDefaultServiceAccounts
+  iam.allowedPolicyMemberDomains
+  # Artifact and log buckets.
+  storage.publicAccessPrevention
+  storage.uniformBucketLevelAccess
+)
+
+echo "==> org policy: resetting ${#RESET_CONSTRAINTS[@]} constraints to Google defaults"
+FAILED_RESETS=()
+for C in "${RESET_CONSTRAINTS[@]}"; do
+  if gcloud org-policies reset "${C}" --project="${PROJECT}" >/dev/null 2>&1; then
+    printf '    reset  %s\n' "${C}"
+  else
+    printf '    SKIP   %s (not set, or no permission)\n' "${C}"
+    FAILED_RESETS+=("${C}")
+  fi
+done
+
+# Custom constraints cannot be guessed; they are org-specific and named by whoever
+# created them. List whatever is still in force so nothing blocks silently later.
+echo "==> custom constraints still in force on this project"
+gcloud org-policies list --project="${PROJECT}" --format="value(constraint)" 2>/dev/null \
+  | grep -i "custom\." | sed 's/^/    /' || true
+echo "    (a custom constraint that restricts firewall ranges will not stop this build;"
+echo "     the RDMA VPC only needs internal CIDR rules. It will stop a public L4 LB.)"
+
+# Verify the one that matters rather than trusting the reset.
+echo "==> verifying the HPC image is reachable"
+if gcloud compute images list --project=cloud-hpc-image-public \
+     --filter="family~hpc-rocky-linux-8" --format="value(name)" --limit=1 2>/dev/null | grep -q .; then
+  echo "    OK, cloud-hpc-image-public is readable"
+else
+  echo "" >&2
+  echo "FATAL: cannot read cloud-hpc-image-public." >&2
+  echo "H4D Cloud RDMA requires the HPC VM image and no node will boot without it." >&2
+  echo "compute.trustedImageProjects is still restricting this project. An org admin" >&2
+  echo "must run: gcloud org-policies reset compute.trustedImageProjects --project=${PROJECT}" >&2
   exit 1
-}
-
-echo "==> org policy: serial console, for debugging the fabric"
-gcloud org-policies reset compute.disableSerialPortAccess --project="${PROJECT}" || true
-
-echo "==> org policy: IP forwarding, H4D uses 2-10 vNICs"
-gcloud org-policies reset compute.vmCanIpForward --project="${PROJECT}" || true
+fi
 
 # ---------------------------------------------------------------------------------
 # Networking.

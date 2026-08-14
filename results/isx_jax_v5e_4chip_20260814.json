@@ -1,0 +1,33 @@
+{
+  "_note": "First ISx-JAX run, 2026-08-14, 4x TPU v5e (v5litepod-4, 2x2) in us-west4-a via GKE Autopilot. Verification PASSED. This is an untuned baseline and the rate is NOT a fabric measurement; see _analysis.",
+  "device_kind": "TPU v5 lite",
+  "n_devices": 4,
+  "jax_version": "0.9.0",
+  "keys_per_device": 4194304,
+  "total_keys": 16777216,
+  "total_bytes": 134217728,
+  "exchange": "padded",
+  "pad_capacity": 1363148,
+  "pad_slack": 1.3,
+  "ragged_available": true,
+  "compile_s": 34.66,
+  "time_best_s": 0.6728,
+  "time_mean_s": 0.6729,
+  "rate_GBps": 0.1995,
+  "ordered": true,
+  "keys_conserved": true,
+  "bucket_overflow": false,
+  "verification": "PASSED",
+
+  "_analysis": {
+    "headline": "The network is not the bottleneck, which is the opposite of what ISx is designed to show.",
+    "evidence": "Probe B measured jax.lax.all_to_all on uint64 at 175 GB/s off-chip on this same hardware. This end-to-end run reports 0.20 GB/s. The exchange is therefore well under 1% of the 673 ms, and the remaining time is local work.",
+    "cause": "The padded exchange costs two full sorts per iteration. build_padded() argsorts all 4.19M local keys to group them by destination, then jax.lax.sort runs again over the 5.45M-slot padded receive buffer. XLA needs static shapes, so the destination-major layout is built with an argsort plus a scatter rather than the counting pass the C version uses.",
+    "not_yet_tried": [
+      "ragged_all_to_all, which this JAX has, removing the 30% padding and one of the sorts",
+      "a radix pass instead of argsort for the local bucketing, matching src/isx64",
+      "larger keys-per-device, since 0.13 GB total is far too small to saturate ICI"
+    ],
+    "fair_comparison_warning": "Do not quote 0.20 GB/s against the H4D path. It measures an untuned local phase on a 0.13 GB problem, not the TPU interconnect."
+  }
+}
