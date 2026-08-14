@@ -65,9 +65,26 @@ Candidates, none yet tested:
    would produce exactly this pattern. Re-running on a different node pair would separate
    a fabric-wide property from a bad host.
 
-Item 3 is the cheapest and should be done first. It is the difference between "H4D
-OpenSHMEM is unstable" and "these two machines are unhealthy", and the current data cannot
-distinguish them.
+### Node health has been checked and is clean
+
+Google's own `irdma_health_check`, installed as a Slurm prolog by the Cluster Toolkit
+blueprint, passes on both nodes:
+
+```
+isxh4de1-h4dnodeset-0 exit=0   Loopback test PASSED. RDMA health checks passed.
+isxh4de1-h4dnodeset-1 exit=0   Loopback test PASSED. RDMA health checks passed.
+```
+
+The `irdma0` port error counters are all zero on both nodes.
+
+That weakens candidate 3 considerably: these are not visibly degraded machines. It does
+not eliminate it, because the health check is a single-pair loopback test rather than a
+multi-PE stress test, and the failures only appear under concurrent all-to-all load. But
+the simple explanation is now unlikely, which leaves hard polling as the leading
+candidate.
+
+Testing a different node pair is still worth doing and needs a cluster larger than two
+nodes to do properly.
 
 ## Reproducing
 
