@@ -47,47 +47,89 @@ gcloud services enable \
 # the HPC VM image from cloud-hpc-image-public, and if that project is not allowed the
 # instance create fails on image access, which reads like an IAM problem.
 # ---------------------------------------------------------------------------------
-RESET_CONSTRAINTS=(
-  # Hard blocker for H4D: the HPC VM image lives in cloud-hpc-image-public.
-  compute.trustedImageProjects
-  # H4D takes 2 to 10 vNICs; multi-NIC setups trip IP forwarding restrictions.
-  compute.vmCanIpForward
-  # Debugging an RDMA fabric without a serial console is painful and slow.
-  compute.disableSerialPortAccess
-  # Login and controller nodes, and any IAP path.
-  compute.vmExternalIpAccess
-  compute.requireOsLogin
-  compute.requireShieldedVm
-  # Cluster Toolkit builds its own networks and may peer them.
-  compute.restrictVpcPeering
-  compute.skipDefaultNetworkCreation
-  compute.restrictSharedVpcSubnetworks
-  compute.restrictSharedVpcHostProjects
-  # Slurm health checks and startup scripts read guest attributes.
-  compute.disableGuestAttributesAccess
-  # Filestore and any internal load balancer the toolkit creates.
-  compute.restrictLoadBalancerCreationForTypes
-  compute.restrictProtocolForwardingCreationForTypes
-  # Service accounts for the controller and compute nodes.
-  iam.disableServiceAccountKeyCreation
-  iam.disableServiceAccountCreation
-  iam.automaticIamGrantsForDefaultServiceAccounts
-  iam.allowedPolicyMemberDomains
-  # Artifact and log buckets.
-  storage.publicAccessPrevention
-  storage.uniformBucketLevelAccess
-)
+# Check the effective policy first and reset only if it actually blocks this build.
+# Blanket-resetting everything would disable constraints that have nothing to do with
+# H4D, and this script is a deliverable someone else re-runs in their own environment.
+#
+# DRY_RUN=1 reports what would change without changing it.
+effective() {
+  gcloud org-policies describe "$1" --project="${PROJECT}" --effective \
+    --format="value(spec.rules)" 2>/dev/null
+}
 
-echo "==> org policy: resetting ${#RESET_CONSTRAINTS[@]} constraints to Google defaults"
-FAILED_RESETS=()
-for C in "${RESET_CONSTRAINTS[@]}"; do
-  if gcloud org-policies reset "${C}" --project="${PROJECT}" >/dev/null 2>&1; then
-    printf '    reset  %s\n' "${C}"
-  else
-    printf '    SKIP   %s (not set, or no permission)\n' "${C}"
-    FAILED_RESETS+=("${C}")
+reset_if() {
+  local constraint="$1" blocks="$2" why="$3"
+  if [[ "${blocks}" != "yes" ]]; then
+    printf '    ok     %-45s %s\n' "${constraint}" "not blocking"
+    return
   fi
-done
+  if [[ "${DRY_RUN:-0}" == "1" ]]; then
+    printf '    WOULD  %-45s %s\n' "${constraint}" "${why}"
+    return
+  fi
+  if gcloud org-policies reset "${constraint}" --project="${PROJECT}" >/dev/null 2>&1; then
+    printf '    RESET  %-45s %s\n' "${constraint}" "${why}"
+  else
+    printf '    FAILED %-45s %s\n' "${constraint}" "needs orgpolicy.policy.set"
+    BLOCKED_ON_ADMIN+=("${constraint}")
+  fi
+}
+
+BLOCKED_ON_ADMIN=()
+echo "==> org policy: checking what actually blocks an H4D RDMA cluster"
+
+# 1. The hard blocker. Cloud RDMA requires the HPC VM image, which lives in
+#    cloud-hpc-image-public. If the allowlist exists and omits that project, no H4D node
+#    boots, and the error looks like an IAM failure rather than a policy one.
+TIP=$(effective compute.trustedImageProjects)
+if [[ -n "${TIP}" && "${TIP}" != *"cloud-hpc-image-public"* ]]; then
+  reset_if compute.trustedImageProjects yes "allowlist omits cloud-hpc-image-public"
+else
+  reset_if compute.trustedImageProjects no ""
+fi
+
+# 2. Shielded VM. Only a problem if the HPC image does not publish shielded support.
+#    Checked rather than assumed, because on most orgs this is fine.
+if [[ "$(effective compute.requireShieldedVm)" == *"enforce': True"* ]]; then
+  SHIELD_OK=$(gcloud compute images list --project=cloud-hpc-image-public \
+    --filter="family~hpc-rocky-linux-8" --format="value(shieldedInstanceInitialState)" \
+    --limit=1 2>/dev/null)
+  if [[ -z "${SHIELD_OK}" ]]; then
+    reset_if compute.requireShieldedVm yes "HPC image does not advertise shielded support"
+  else
+    reset_if compute.requireShieldedVm no ""
+  fi
+else
+  reset_if compute.requireShieldedVm no ""
+fi
+
+# 3. External IPs. This build reaches the login node over IAP, so a denyAll here is
+#    only a blocker if you intend to attach public IPs.
+if [[ "$(effective compute.vmExternalIpAccess)" == *"denyAll': True"* && "${WANT_EXTERNAL_IP:-0}" == "1" ]]; then
+  reset_if compute.vmExternalIpAccess yes "WANT_EXTERNAL_IP=1 but external IPs are denied"
+else
+  reset_if compute.vmExternalIpAccess no ""
+fi
+
+# Left alone deliberately, with the reason, so the next person does not re-litigate it:
+#   compute.disableSerialPortAccess  makes fabric debugging harder but blocks nothing.
+#                                    Set ALLOW_SERIAL=1 to reset it anyway.
+#   compute.requireOsLogin           Cluster Toolkit and Slurm work with OS Login.
+#   compute.vmCanIpForward           H4D uses multiple vNICs but does not forward
+#                                    packets it did not originate, so denyAll is fine.
+#   iam.* and storage.*              nothing in this build touches them.
+if [[ "${ALLOW_SERIAL:-0}" == "1" ]]; then
+  reset_if compute.disableSerialPortAccess yes "ALLOW_SERIAL=1, for fabric debugging"
+fi
+
+if [[ ${#BLOCKED_ON_ADMIN[@]} -gt 0 ]]; then
+  echo
+  echo "An org admin must reset these; orgpolicy.policy.set is not grantable via a" >&2
+  echo "custom role in some orgs:" >&2
+  for C in "${BLOCKED_ON_ADMIN[@]}"; do
+    echo "  gcloud org-policies reset ${C} --project=${PROJECT}" >&2
+  done
+fi
 
 # Custom constraints cannot be guessed; they are org-specific and named by whoever
 # created them. List whatever is still in force so nothing blocks silently later.
