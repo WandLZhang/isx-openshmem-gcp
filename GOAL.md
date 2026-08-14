@@ -66,7 +66,7 @@ Tracked honestly. See `results/` for the underlying measurements.
 | OpenSHMEM PGAS, no MPI | **met.** SOS 1.5.3 on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
 | RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive. `FI_RMA_EVENT` and `FI_FENCE` unsupported; both have configure workarounds |
 | >= 4,096 endpoints | **not met.** 64 PEs on 2 nodes. Capped at 32 PEs/node by an OFI retry wall |
-| > 1 PB in-memory | **not met.** 2.00 GB largest verified run |
+| > 1 PB in-memory | **not met, and blocked.** 2.00 GB largest verified run. Symmetric heap caps at ~2 GB/PE, see `results/BLOCKER_symmetric_heap_20260814.md` |
 | Correctness validation | **met at small scale.** PASSED at 16, 32 and 64 PEs cross-node |
 | Reproducibility | **not met.** 8 PEs passed standalone and failed in-sweep; jitter uncharacterised |
 | Performance stability / inflection points | **met.** Three identified: 32 PEs/node ceiling, all2all crossover at 64 PEs, low-PE jitter |
