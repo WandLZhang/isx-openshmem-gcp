@@ -85,6 +85,9 @@ Launch:
 
 ```bash
 export SHMEM_OFI_PROVIDER="verbs;ofi_rxm"
+# Both of the following help the standalone reproducer substantially and were measured
+# to do nothing for ISx64 itself on 2 nodes. They are kept because they are principled
+# and free, not because they are proven on the benchmark. Re-measure at real node counts.
 export FI_VERBS_GID_IDX=1              # routable GID, see results/ROOTCAUSE_*.md
 export FI_OFI_RXM_CQ_EQ_FAIRNESS=1     # stops data traffic starving CM progress
 export SHMEM_SYMMETRIC_SIZE=2G         # NUM_PES x WINDOW x 8, with WINDOW=4096

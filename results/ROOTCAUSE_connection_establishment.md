@@ -247,8 +247,23 @@ completion triples the completion rate at the operation count where the benchmar
 This is the second fix found, and unlike the GID setting it was predicted from the
 mechanism before it was measured, which is a reasonable check on the diagnosis.
 
-Still to do: verify `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` on the real ISx64 rather than the
-reproducer, and try it combined with `FI_VERBS_GID_IDX=1` and the staggered warmup.
+**Verified on the real ISx64, and it does not transfer either.** Five runs per cell,
+1,073,741,824 keys:
+
+| | 32 PEs/node | 64 PEs/node |
+|---|---|---|
+| baseline | 3/5 | 1/5 |
+| `FI_VERBS_GID_IDX=1` + `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` | 3/5 | 1/5 |
+
+So both settings that help the reproducer do nothing for the benchmark. Matching the
+operation count was not sufficient to make the reproducer model ISx64. What still differs:
+ISx64 issues a `shmem_atomic_fetch_add` per destination, its puts are variable-sized
+rather than a fixed 256 KB, and it interleaves key generation and a radix sort between
+exchanges. One of those, not raw operation count, is what pins the benchmark.
+
+Note also the run-to-run spread at n=5: the same 32 PEs/node baseline measured 2/5 in one
+job and 3/5 in another. Cells differing by one count should not be read as signal, and the
+2-node results in general need larger samples than this session had time for.
 
 ## What this means for the study
 
