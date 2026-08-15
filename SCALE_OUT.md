@@ -1,4 +1,4 @@
-# Scale-out recipe: what to change when capacity arrives
+# Scale-out recipe
 
 Everything here is arithmetic against measured per-node numbers. Nothing in it needs new
 code beyond the memory work noted in step 2. The purpose is that whoever gets the capacity
@@ -66,7 +66,7 @@ windowed-exchange validation, so this costs nothing measurable.
 `docs/streamed_exchange_design.md` is implemented.** Because the exchange already rotates
 destinations, every PE receives from exactly one sender per step, so the window needs one
 slot rather than `NUM_PES` slots: 3.36 GB → 131 KB per PE at the target shape. That is
-worth doing on its own merits, ahead of the streaming it was discovered while designing.
+applicable on its own, ahead of the streaming work it came from.
 
 ## Step 4 — the numbers to actually run
 
@@ -90,9 +90,8 @@ Launch:
 
 ```bash
 export SHMEM_OFI_PROVIDER="verbs;ofi_rxm"
-# Both of the following help the standalone reproducer substantially and were measured
-# to do nothing for ISx64 itself on 2 nodes. They are kept because they are principled
-# and free, not because they are proven on the benchmark. Re-measure at real node counts.
+# Both settings improve the standalone reproducer. Neither changed ISx64 results on
+# 2 nodes. They cost nothing, so they are kept here. Re-measure at real node counts.
 export FI_VERBS_GID_IDX=1              # routable GID, see results/ROOTCAUSE_*.md
 export FI_OFI_RXM_CQ_EQ_FAIRNESS=1     # stops data traffic starving CM progress
 export SHMEM_SYMMETRIC_SIZE=2G         # NUM_PES x WINDOW x 8, with WINDOW=4096
@@ -113,7 +112,7 @@ Self-service is capped at 500 in every region, so both need an approved escalati
 zone holds the machines as a separate step. us-central1-a and us-central1-b were both
 exhausted at a time when quota was sufficient.
 
-## What must be re-validated when the capacity lands
+## Re-validation once capacity lands
 
 Do not assume the 2-node results transfer. In order:
 
@@ -123,7 +122,7 @@ Do not assume the 2-node results transfer. In order:
    `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` were measured on 2 nodes. Connections per node scale as
    `PEs_per_node × total_PEs`, so at 25,600 PEs and 32 PEs/node that is 819,200
    connections per node against 8,192 today. This is the largest single unknown in the
-   whole plan and it is why step 1 above matters.
+   whole plan, and step 1 above tests it.
 3. **A 10-run reproducibility set** at whatever the largest stable shape turns out to be,
    before attempting the full petabyte.
 4. **Then the petabyte run.**

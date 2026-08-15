@@ -19,7 +19,7 @@ The stack works, and the documented build recipe does not. Five things had to ch
 | SOS transport | **OFI** |
 | one-sided put across nodes | **not tested**, needs 2 nodes and a launcher |
 
-## What the documentation gets wrong
+## Documentation errors
 
 **1. `onHostMaintenance` must be TERMINATE, and the error contradicts itself.**
 
@@ -88,7 +88,7 @@ Spot was stocked out in us-central1-b at the time of the run, so this used on-de
 DWS Dedicated pool for h4d-highmem in that zone is separate inventory from Spot and is
 where the real capacity sits.
 
-## SSH timing, incidental but useful
+## SSH timing
 
 Per remote command against this node:
 

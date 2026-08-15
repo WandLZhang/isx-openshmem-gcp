@@ -1,4 +1,4 @@
-# Why the cluster stops at 2 nodes: CPUS_PER_VM_FAMILY, not capacity
+# CPUS_PER_VM_FAMILY caps the cluster at 2 nodes
 
 Established 2026-08-14 in project `wz-isx-benchmark`.
 
@@ -25,7 +25,7 @@ us-central1  {'region': 'us-central1', 'vm_family': 'H4D'}  limit=500
 `h4d-highmem-192` is 192 vCPU. **500 / 192 = 2.6, so 2 nodes.** That is the entire
 explanation for a two-node cluster.
 
-## This is not the quota that gets checked
+## The quota that binds
 
 The obvious quota reads fine and is misleading:
 
@@ -57,7 +57,7 @@ gcloud alpha services quota update ... --value=24576 --force
 The consumer override is itself capped at 500, so this needs a quota increase through
 support or the internal capacity escalation path, not a console click.
 
-## What the target requires
+## Requirement for the target
 
 | goal | PEs | PEs/node (measured wall) | nodes | H4D vCPU | quota needed |
 |---|---:|---:|---:|---:|---:|

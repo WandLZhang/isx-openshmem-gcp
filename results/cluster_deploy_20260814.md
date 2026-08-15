@@ -36,7 +36,7 @@ The same pattern has now appeared three times in this work:
 A capacity dashboard reports pool size. It does not report obtainability, and the two are
 not close. The only reliable test is a real request.
 
-## Cloud RDMA is zone-locked, which caps a retry strategy
+## Cloud RDMA is zone-locked
 
 The usual remedy is to change zone. That is constrained here: the Falcon network profile
 is per zone, so an RDMA VPC built for `us-central1-b-vpc-falcon` cannot serve any other

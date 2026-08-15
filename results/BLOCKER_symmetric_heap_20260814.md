@@ -58,7 +58,7 @@ node and `SHMEM_SYMMETRIC_HEAP_USE_HUGE_PAGES=1`, 8 x 8 GB still failed, this ti
 silently fell back to 4 KB pages, which is worth knowing: **the huge-page setting fails
 silently when no pages are reserved.**
 
-## What it costs at petabyte scale
+## Cost at petabyte scale
 
 ISx needs about 1.2x its per-PE key array resident in the symmetric heap, because that is
 the buffer peers write into.

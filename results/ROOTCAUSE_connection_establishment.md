@@ -1,10 +1,10 @@
-# The instability is connection establishment, and the connectionless alternative is blocked
+# Connection establishment and the connectionless alternative
 
 2026-08-15. This supersedes the ranked hypotheses in `HYPOTHESES_instability.md`. H1
 (`FI_DELIVERY_COMPLETE` not implemented) and H3 (TX queue exhaustion) are both wrong.
 The failure occurs during connection establishment.
 
-## What the timings show
+## Round timings
 
 `repro/livelock_repro.c` prints each round. Round 0 is not like the others:
 
@@ -30,7 +30,7 @@ per-node resource that grows with both terms.
 
 When a run fails it prints no round at all, so it dies inside round 0.
 
-## Serialising the connections moves the cost but does not fix the hang
+## Serialised connection setup
 
 `WARMUP=1` opens every connection first with an 8-byte put and a `shmem_quiet()` after
 each, then runs the same exchange. On the one attempt in five that completed:
@@ -58,7 +58,7 @@ Shared receive contexts (`FI_OFI_RXM_USE_SRX=1`) gave 0/5 alone and 0/5 with war
 | SRX | — | 0/5 |
 | SRX + warmup | — | 0/5 |
 
-## The connectionless provider exists, and is blocked by two separate things
+## The connectionless provider
 
 The requirement asks for a fabric with **connectionless semantics**. `verbs;ofi_rxm` is
 connection-oriented, and connection setup is exactly what fails. H4D does expose a
@@ -214,7 +214,7 @@ down and re-established during a long run.
 Manual progress is now cleanly measured as a hard regression (0/7), which reinstates the
 earlier claim that had to be withdrawn for being untestable.
 
-## Why the hazard grows with operation count: CM progress is starved by data
+## Operation count and CM starvation
 
 Two rxm defaults explain it:
 
@@ -265,7 +265,7 @@ Note also the run-to-run spread at n=5: the same 32 PEs/node baseline measured 2
 job and 3/5 in another. Cells differing by one count should not be read as signal, and the
 2-node results in general need larger samples than this session had time for.
 
-## What this means for the study
+## Effect on the study
 
 On H4D, an OpenSHMEM runtime can have RDMA one-sided Get/Put/Atomics **or**
 connectionless semantics, not both:
@@ -275,8 +275,8 @@ connectionless semantics, not both:
 | `verbs;ofi_rxm` | yes | **no**, RC connections | yes, but fails above ~32 PEs/node |
 | `verbs;ofi_rxd` | messaging yes, RMA no | **yes**, UD | no, RMA hits the retry limit at 2 PEs |
 
-The requirement asks for both at once. That is a fabric-and-stack finding rather than a
-tuning problem, and it belongs in the Failure Analysis deliverable.
+The requirement asks for both at once. The cause is the fabric and the software stack,
+not a tuning parameter, so it belongs in the Failure Analysis deliverable.
 
 ## A correction to the earlier record
 

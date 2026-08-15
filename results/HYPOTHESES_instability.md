@@ -1,4 +1,4 @@
-# The ~30% completion rate: evidence, hypotheses, and what would settle each
+# The 30% completion rate: evidence and hypotheses
 
 Working document for the instability that now blocks scale. Written after the memory
 ceiling was solved (`BREAKTHROUGH_windowed_exchange_20260815.md`), which promoted this

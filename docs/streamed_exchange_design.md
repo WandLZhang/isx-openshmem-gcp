@@ -4,7 +4,7 @@ Goal: get peak resident memory from 2.02x down toward 1.15x, which is 1,403 node
 for 1 PB. Written before implementing because the obvious approach does not work and the
 one that does also fixes a separate problem.
 
-## Why the obvious approach fails
+## The direct approach
 
 "Release `send` incrementally as the exchange drains it" does not survive contact with
 the current loop. `exchange_windowed` iterates rounds on the outside and destinations on
@@ -16,7 +16,7 @@ production shape that is 128 rounds over a 39 GB buffer per PE.
 `realloc` down cannot help either, since a single `malloc` block cannot release its
 middle.
 
-## What does work: invert the loop, and the window collapses
+## Inverting the loop
 
 Reverse the nesting — destinations outside, windows inside — and use the rotation that is
 already there. At step `i`, PE `p` sends to `(p + i) % n`. Every PE targets a **different**
@@ -54,7 +54,7 @@ it needs measuring on both axes.
 1. Implement the inverted schedule with a single-slot window, keeping `send` as one block.
    Verify correctness, and measure throughput against the current schedule.
 2. Only if throughput holds, split `send` into per-destination allocations and free as it
-   drains. That is the part that actually buys the memory.
+   drains. This step is what reduces the memory.
 3. Re-measure stability, because the schedule changed.
 
 Step 1 is where the risk is and it is not a small change. It should be done with the

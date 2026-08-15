@@ -14,7 +14,7 @@ typedef int KEY_TYPE;
 
 The API calls are the smallest part.
 
-## Why every counter also had to change
+## Counter widths
 
 The target is more than 1 PB of keys. At 8 bytes per key that is 1.25e14 keys. Spread
 across about 7,000 endpoints, each endpoint holds roughly **1.75e10 keys**.
@@ -53,7 +53,7 @@ and since these are the values `verify_results()` checks against, verification w
 or fail for reasons unrelated to the sort. The bound check is the thing that proves the
 sort worked, so a silently broken bound check is worse than no check.
 
-## Two changes that are not type widening
+## Changes beyond type widths
 
 ### 1. The local sort: counting sort to radix sort
 
@@ -117,7 +117,7 @@ The seed also changed. Upstream mixes wall-clock time into the per-rank seed, wh
 a run unreproducible. The study requires "consistent results across multiple runs using
 the same configuration", so the seed is derived from the rank alone.
 
-## What did not change
+## Unchanged
 
 The algorithm. Key generation, bucket-by-destination, one-sided exchange, local sort,
 verify. The communication pattern that the study is measuring is untouched: an irregular

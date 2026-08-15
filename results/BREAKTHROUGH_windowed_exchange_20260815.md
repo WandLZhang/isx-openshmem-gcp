@@ -1,4 +1,4 @@
-# The symmetric-heap ceiling is a software problem, and it is solved
+# Windowed exchange removes the symmetric-heap ceiling
 
 Measured 2026-08-15 on two `h4d-highmem-192-lssd` in `us-east1-b`, 32 PEs (16 per node).
 Implementation: `src/isx64/isx64_win.c`.
@@ -44,7 +44,7 @@ ceiling.
 The extra memcpy on the receive side and the two barriers per round cost essentially
 nothing at these sizes. The decoupling is not paid for in bandwidth.
 
-## What now bounds 1 PB
+## Remaining bounds on 1 PB
 
 With the heap out of the way, the limit is node RAM and the algorithm's footprint.
 
@@ -68,7 +68,7 @@ Two further reductions get from 2.60x to 1.02x, and neither is exotic:
    The PRNG is deterministic and seeded per rank, so keys can be regenerated rather than
    stored.
 
-## What this does not fix
+## Not addressed
 
 **Reproducibility.** Two of the three runs above needed a second attempt. The ~30%
 completion rate documented in `BLOCKER_reproducibility_20260814.md` is untouched by this

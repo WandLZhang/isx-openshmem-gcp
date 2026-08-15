@@ -19,7 +19,7 @@ Baseline to beat: **2 of 7 completed at 32 PEs/node**, and **0 of 3 at 64 PEs/no
 Four failed fixes. The debugging discipline says three or more means the architecture is
 wrong rather than the parameter. Stopping here instead of attempting a fifth guess.
 
-## 3. FI_TRANSMIT_COMPLETE — the best-supported hypothesis, and it was wrong
+## 3. FI_TRANSMIT_COMPLETE
 
 libfabric [#5601](https://github.com/ofiwg/libfabric/issues/5601) says verbs;ofi_rxm
 advertises `FI_DELIVERY_COMPLETE` but silently provides only `FI_TRANSMIT_COMPLETE`. SOS
@@ -45,7 +45,7 @@ so replace the layer. OSSS-UCX is OpenSHMEM over UCX, uses no libfabric, stays
 one-sided PGAS, and is not MPI, so it keeps the study responsive.
 
 Built OpenPMIx 5.0.6, UCX 1.18.0 and OSSS-UCX. It runs and it segfaults immediately, on
-the two-PE one-sided probe, before any of the interesting work.
+the two-PE one-sided probe, before the main work.
 
 **A trap worth recording.** UCX was first built on the Slurm controller, a `c2-standard-4`
 with no `irdma0` and no verbs headers. `configure` auto-detects, found neither, and
@@ -71,7 +71,7 @@ OSSS-UCX still segfaults in both PEs. Not diagnosed. Most likely a PMIx or UCX v
 mismatch rather than anything about H4D, since it fails at init before touching the
 fabric.
 
-## What is now known about the failure
+## Established facts
 
 From `HYPOTHESES_instability.md` plus the above:
 
@@ -86,7 +86,7 @@ From `HYPOTHESES_instability.md` plus the above:
 - The completion semantic, shared transmit contexts and SOS's progress strategy are all
   excluded.
 
-## What to try next, in order
+## Next steps, in order
 
 1. **libfabric debug build with `FI_LOG_LEVEL=debug FI_LOG_PROV=rxm,verbs`.** Still the
    cheapest unblocked diagnostic and still not done; the release build compiles the log
@@ -104,12 +104,12 @@ From `HYPOTHESES_instability.md` plus the above:
 
 ---
 
-## 5. Bounding operations in flight — first crack in the wall, not a fix
+## 5. Bounding operations in flight
 
 The mechanism nothing had yet addressed: `exchange_keys()` issues `NUM_PES` puts back to
 back and only quiets at the end. The provider reports a transmit queue depth of **2048**,
 and at 64 PEs per node sharing one 200 Gbps NIC the aggregate outstanding count runs far
-past it. That is a plausible source of permanent `-FI_EAGAIN`.
+past it. This is a plausible source of permanent `-FI_EAGAIN`.
 
 Added `ISX64_THROTTLE`: force `shmem_quiet()` every N puts, 0 restoring upstream
 behaviour. Swept at 64 PEs/node, the wall that had returned 0/3 under **every** previous
@@ -125,7 +125,7 @@ configuration.
 **THROTTLE=1 is the first configuration in this entire study to complete at 64 PEs per
 node.** Every other attempt, across five different changes, returned 0/3 there.
 
-That is real evidence for the mechanism: the livelock is outstanding-operation
+This is evidence for the mechanism. The livelock is outstanding-operation
 exhaustion, and bounding in-flight operations relieves it.
 
 It is not a fix, and should not be reported as one:

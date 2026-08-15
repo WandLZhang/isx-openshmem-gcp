@@ -24,7 +24,7 @@ When it does complete, timing is tight: 0.213 s against 0.214 s, and all2all 0.0
 against 0.043 s. The instability is binary — the run either completes with a repeatable
 time or it does not complete at all.
 
-## What this invalidates
+## Invalidated results
 
 `isx64_h4d_scaling_20260814.md` reports 16, 32 and 64 PEs as PASSED. Each of those was a
 **single sample**. At a ~30% success rate, a single PASS is a lucky draw, not evidence that
@@ -47,7 +47,7 @@ arguably the most consequential finding of the H4D path: a fabric that completes
 petabyte sort 30% of the time is not a production configuration, and "Operational
 Plausibility" is also a stated criterion.
 
-## Cause, and what is not yet known
+## Cause
 
 Not established. The failures present as the same `Operation retry limit exceeded
 (1073741824)` seen at the PEs-per-node wall, which means SOS spun 2^30 times in
@@ -65,7 +65,7 @@ Candidates, none yet tested:
    would produce exactly this pattern. Re-running on a different node pair would separate
    a fabric-wide property from a bad host.
 
-### Node health has been checked and is clean
+### Node health
 
 Google's own `irdma_health_check`, installed as a Slurm prolog by the Cluster Toolkit
 blueprint, passes on both nodes:
@@ -87,7 +87,7 @@ Testing a different node pair is still worth doing and needs a cluster larger th
 nodes to do properly, which is currently blocked by
 `BLOCKER_quota_cpus_per_vm_family.md`.
 
-### Manual progress was tried and made it worse
+### Manual progress
 
 `--enable-ofi-manual-progress` was the leading hypothesis: SOS requests
 `FI_PROGRESS_AUTO` by default, the verbs provider is conventionally manual-progress, and a

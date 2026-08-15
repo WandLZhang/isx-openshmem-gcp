@@ -1,6 +1,6 @@
-# Deliverable 3: what telemetry is and is not available on H4D
+# Deliverable 3: telemetry available on H4D
 
-## Network utilisation: byte counters do not work, derive it instead
+## Network utilisation
 
 Snapshotting every counter in `/sys/class/infiniband/irdma0/ports/1/hw_counters` and
 `/sys/class/net/enp0s9/statistics` on node 0, around a 2-node 64-PE exchange that moved

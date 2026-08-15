@@ -18,7 +18,7 @@ Two paths were built. An OpenSHMEM path on H4D with Cloud RDMA, which is the com
 answer. And a JAX path on TPU using `jax.lax.all_to_all`, which is not OpenSHMEM and is
 offered as the throughput comparison the study asked for.
 
-## 2. Why H4D, and why not the alternatives
+## 2. Machine family selection
 
 The study names NVSHMEM on H200 over Quantum-2 InfiniBand. That configuration does not
 exist on Google Cloud, for two independent reasons: there is no InfiniBand, only RoCE over
@@ -37,7 +37,7 @@ Selecting on what the fabric must do rather than on the named hardware:
 
 The honest framing is **h4d is the compliance path and a4x is the scale path**.
 
-### Capacity is a measurement, not a lookup
+### Measuring capacity
 
 Three separate times, a capacity dashboard disagreed with a real request. The most
 instructive: h4d-highmem in us-central1-b showed substantially free, and four VMs could not
@@ -53,7 +53,7 @@ another zone means rebuilding the RDMA VPC, the nodeset, the controller and the 
 And the Falcon zone list is not the H4D zone list: us-west4-c is the second-largest H4D
 pool in the fleet and has no Falcon profile, so it cannot do Cloud RDMA at all.
 
-## 3. Porting ISx to 64 bits was not a typedef change
+## 3. The 64-bit port
 
 Upstream ISx declares `typedef int KEY_TYPE` over a 2^28 key space. The header warns only
 that the SHMEM API calls must change. Three deeper problems:
@@ -63,7 +63,7 @@ PE holds about 1.75e10 keys, which overflows a signed 32-bit counter roughly 8x,
 Sizes go negative, the prefix scan wraps, and the program still reports success.
 
 **The local sort.** `count_local_keys()` histograms into an array of `BUCKET_WIDTH` ints.
-That is a counting sort, tractable only because the key space is small. At `MAX_KEY = 2^60`
+This is a counting sort. It is tractable only because the key space is small. At `MAX_KEY = 2^60`
 over a few thousand buckets that array would be about 1.4 PB per PE. Counting sort is a
 property of a small key space, not of bucket sort, so the local phase became an LSD radix
 sort: linear in received keys, independent of key space. This also matches what the study
@@ -96,7 +96,7 @@ parallelstore repo with no matching `-devel` in any repo, and the only `-devel` 
 (1.18.0) conflicts with `mercury`. There is no supported way to compile against the system
 libfabric.
 
-## 5. What was achieved, and the two walls
+## 5. Results and the two walls
 
 Cross-node one-sided RDMA works. Two PEs on two physical nodes, each writing into the
 other's symmetric heap with no matching receive on the target. No `libmpi` in the runtime;
@@ -134,7 +134,7 @@ at `shmem_init()`. Huge pages do not lift it.
 Consequence: about 26.7 GB of sortable keys per node, so 1 PB needs roughly **37,500
 nodes**, against far beyond any single-zone H4D pool.
 
-### The walls are in tension
+### Interaction between the two walls
 
 1 PB wants a large heap per node. 4,096 endpoints wants many PEs per node. At the measured
 limits, the largest configuration satisfying the endpoint requirement sorts about
@@ -147,7 +147,7 @@ TPUs do handle 64-bit integers, despite documentation stating `int32` only. Meas
 returns ordered output at a 1.48x penalty against int32, and `all_to_all` moves uint64 over
 ICI at 175 GB/s.
 
-The interesting constraint is structural rather than numeric. ISx buckets are statistically
+The constraint is structural. ISx buckets are statistically
 even but never exactly even. PGAS does not care: a PE puts whatever it has. A collective
 needs an agreed shape before the compiler can emit it, so the exchange must either pad
 every bucket or use `ragged_all_to_all`. **That gap is the real difference between the two
@@ -161,7 +161,7 @@ number is an untuned local phase, not a fabric measurement, and `results/` says 
 TPU is ultimately bounded by capacity, not arithmetic: 192 GiB per chip and a maximum slice
 of 9,216 chips gives 1.9 PB of HBM, and ISx needs about 2.5x the key array resident.
 
-## 7. Where topology-aware programming helps, and where it cannot
+## 7. Topology-aware programming
 
 It helps in three places, all of which were necessary here:
 

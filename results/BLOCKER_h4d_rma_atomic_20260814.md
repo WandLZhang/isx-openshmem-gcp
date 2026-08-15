@@ -1,4 +1,4 @@
-# RETRACTED — and the real cause
+# RETRACTED
 
 **This document previously claimed that H4D Cloud RDMA cannot offer `FI_RMA` and
 `FI_ATOMIC` on the same endpoint. That claim was wrong. It is retracted in full.**
@@ -6,7 +6,7 @@
 The original conclusion is kept below the fold because the way it was reached is a trap
 worth documenting, and because it was published before it was checked.
 
-## What was actually wrong
+## The actual cause
 
 The real blocker was **`FI_RMA_EVENT`**, not atomics.
 
@@ -47,7 +47,7 @@ registration, which is SOS's **default**. The provider needs basic-mode registra
 ```
 
 `--enable-hard-polling` turns off target counters, so SOS polls for completion instead of
-relying on provider-side counters. That is a performance tradeoff, not a correctness one.
+relying on provider-side counters. This is a performance tradeoff and not a correctness one.
 
 With both flags, cross-node one-sided RMA works:
 
@@ -60,7 +60,7 @@ Two PEs on two physical H4D nodes, each writing into the other's symmetric heap 
 `shmem_longlong_put` and no matching receive on the target. Verified at 2, 4, 6, 8, 12 and
 16 PEs across 2 nodes, all passing.
 
-## How the wrong conclusion was reached
+## Source of the error
 
 The claim rested on this test:
 
@@ -88,7 +88,7 @@ Two lessons, both of which cost time here:
    shape against something known to work before believing a NO.
 2. **`fi_info` is a discovery tool, not a conformance test.** To find out whether a
    specific application's hints are satisfiable, replicate those hints in a few lines of C
-   calling `fi_getinfo` directly and bisect the attributes. That is what finally isolated
+   calling `fi_getinfo` directly and bisect the attributes. This isolated
    `FI_RMA_EVENT`, and it took less time than the guessing did.
 
 A related trap from the same session: run any of these queries from the Slurm controller,
