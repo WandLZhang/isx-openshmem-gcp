@@ -97,8 +97,14 @@ export FI_OFI_RXM_CQ_EQ_FAIRNESS=1     # stops data traffic starving CM progress
 export SHMEM_SYMMETRIC_SIZE=2G         # NUM_PES x WINDOW x 8, with WINDOW=4096
 
 srun -N800 --ntasks-per-node=32 --mpi=pmi2 --export=ALL \
-     ./isx64win 4880000000 1 results/pb_run
+     ./isx64stream 4880000000 1 results/pb_run
 ```
+
+Use `isx64stream`, not `isx64win`. At 64 PEs per node the streamed build validated 4/5
+against the windowed build's 1/5, for 18% less throughput. It also holds the symmetric
+window at `WINDOW * 8` bytes per PE instead of `NUM_PES * WINDOW * 8`, which removes step
+3 above. Both results come from five runs on two nodes, so confirm them at real node
+counts before committing to a petabyte run.
 
 ## Step 5 — quota
 

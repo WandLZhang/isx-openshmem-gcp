@@ -60,8 +60,38 @@ it needs measuring on both axes.
 Step 1 is where the risk is and it is not a small change. It should be done with the
 cluster available for measurement, not written blind.
 
+## Measured
+
+Implemented in `src/isx64/isx64_stream.c`. Two `h4d-highmem-192` nodes, 16,777,216 keys
+per PE, five runs per cell.
+
+| PEs/node | build | validated | rounds | time | rate |
+|---:|---|---|---:|---:|---:|
+| 32 | `isx64_win` | 3/5 | 17 | 2.050 s | 4.19 GB/s |
+| 32 | `isx64_stream` | 2/5 | 1,088 | 2.474 s | 3.47 GB/s |
+| 64 | `isx64_win` | 1/5 | 9 | 3.584 s | 4.79 GB/s |
+| 64 | **`isx64_stream`** | **4/5** | 1,152 | 4.351 s | 3.95 GB/s |
+
+The two sizes disagree. At 32 PEs per node the streamed build is slightly worse, which
+sits inside the plus-or-minus-one spread measured elsewhere. At 64 PEs per node it
+validates 4/5 against 1/5, which does not.
+
+The direction at 64 PEs per node follows from the root cause. The failure is connection
+establishment under concurrent load, and the streamed schedule sends to one destination
+per step instead of all destinations at once. Serialising the schedule reduces the
+concurrent connection pressure that the windowed version creates. The cost is 18%
+throughput, 4.79 GB/s to 3.95 GB/s.
+
+This is a stronger stability result than either environment variable found in this
+session. `FI_VERBS_GID_IDX=1` and `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` both improved the
+standalone reproducer and left ISx64 unchanged. This changes ISx64 at the size where it
+was failing.
+
+Five runs per cell is a small sample. Repeat at higher counts before treating 4/5 as the
+expected rate.
+
 ## Status
 
-Not implemented. The single-slot-window finding applies whether or not the streaming
+Step 1 is done and measured. Steps 2 and 3 are not implemented. The single-slot-window finding applies whether or not the streaming
 lands. It reduces the symmetric heap 25,600x at the target shape and removes a step from
 the scale-out recipe.
