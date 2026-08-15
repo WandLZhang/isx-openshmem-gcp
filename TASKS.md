@@ -74,10 +74,10 @@ framed as Phase 3, not Phase 2.
 
 ## Goal 3 — Reproducibility: consistent across runs
 
-**Measured: 40% on the real benchmark** at 32 PEs/node (2/5, both with and without the
-GID fix). The reproducer improved for the first time (57% → 86% at 32 PEs/node with
-`FI_VERBS_GID_IDX=1`) but ISx64 did not move, so the reproducer does not yet cover what
-limits the benchmark.
+**Measured on the real benchmark:** 2/5 at 32 PEs/node and 1/5 at 64 PEs/node, identical
+with and without `FI_VERBS_GID_IDX=1`. The reproducer improved for the first time
+(57% → 86% at 32 PEs/node) but ISx64 did not move, so the reproducer does not yet cover
+what limits the benchmark. Largest validated run: **2,147,483,648 keys across 128 PEs**.
 
 **Root cause found**, in `results/ROOTCAUSE_connection_establishment.md`: it is
 `ofi_rxm` connection establishment, not the data path. Round 0 costs 47x a steady-state
@@ -128,7 +128,7 @@ configuration that completes 30% of the time on 2 nodes completes approximately 
 |---|---|---|---|
 | 1 | Source code + runtime modifications | **done** | — |
 | 2 | Provisioning recipe | **done, exercised** | — |
-| 3 | Execution artifacts | **partial** | byte-level bandwidth: `ip4InOctets`/`ip4OutOctets` do not track RoCE on irdma0; needs netdev stats or a different counter set |
+| 3 | Execution artifacts | **done, with a documented limitation** | No byte counter on H4D tracks RoCE: 8.59 GiB moved and nothing in irdma0 hw_counters or enp0s9 statistics changed. Bandwidth is derived from payload and wall time instead. See `results/D3_telemetry.md` |
 | 4 | Architectural narrative | **done** | refresh with the windowed result and the scale-precedent finding |
 | 5 | Failure analysis | **strong** | this is the best deliverable in the package |
 
