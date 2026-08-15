@@ -63,6 +63,12 @@ of the key budget. **Reduce `WINDOW_KEYS_PER_PEER` to 4096** (`src/isx64/isx64_w
 line 58) for runs above roughly 8,000 PEs. Throughput was flat across window sizes in the
 windowed-exchange validation, so this costs nothing measurable.
 
+**This step disappears entirely if the inverted schedule in
+`docs/streamed_exchange_design.md` is implemented.** Because the exchange already rotates
+destinations, every PE receives from exactly one sender per step, so the window needs one
+slot rather than `NUM_PES` slots: 3.36 GB → 131 KB per PE at the target shape. That is
+worth doing on its own merits, ahead of the streaming it was discovered while designing.
+
 ## Step 4 — the numbers to actually run
 
 Target: 1 PB, streamed footprint, 800 nodes, 32 PEs/node = 25,600 endpoints.
