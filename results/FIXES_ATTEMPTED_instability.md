@@ -203,3 +203,63 @@ The remaining moves are all outside application tuning:
 3. **A different node pair**, still blocked on `CPUS_PER_VM_FAMILY`.
 4. **Fix the OSSS-UCX segfault**, which would open a transport path that shares none of
    this code.
+
+## 7. libfabric debug build — the diagnostic itself does not work
+
+The plan of record after six failed fixes was to stop guessing and get provider-level
+logs. Built libfabric 2.6.0 with `--enable-debug` (confirmed `#define ENABLE_DEBUG 1` in
+`config.log`), rebuilt SOS against it, and re-ran the failing 64 PEs/node case with
+`FI_LOG_LEVEL=warn FI_LOG_PROV=rxm,verbs,core`.
+
+**libfabric emitted nothing.** Not from the benchmark, and not even from a bare `fi_info`
+invocation with the same environment:
+
+```
+libfabric log lines from fi_info: 0
+```
+
+So the reason every earlier logging attempt produced no output is not that the release
+build compiled the statements out. Logging does not work in this build at all, for
+reasons not yet established. Possibilities include a change to the log control interface
+in libfabric 2.x, a required `FI_LOG_SUBSYS` setting, or logging being disabled by
+something else in the configure line.
+
+One incidental result: under the debug build the failure mode **changes**. Instead of
+aborting with `Operation retry limit exceeded`, the run simply hangs until the timeout
+kills it. The debug build is slow enough that it never reaches 2^30 retries inside 240
+seconds. The program prints its header and then stops:
+
+```
+ISx64 v0.1   PEs: 128   Keys per PE: 4194304   Total key bytes: 4.00 GiB
+srun: error: tasks 0-63: Killed        (after the 240 s timeout)
+```
+
+That is consistent with everything else observed and is not itself progress.
+
+## Final position after seven attempts
+
+| # | change | result |
+|---|---|---|
+| 1 | `--enable-ofi-manual-progress` | **worse** |
+| 2 | STX auto / STX_MAX=8 | no effect |
+| 3 | `FI_TRANSMIT_COMPLETE` | no effect on stability, 35% faster |
+| 4 | OSSS-UCX over UCX 1.18 | segfault at init |
+| 5 | throttle in-flight operations | 1/3 at the wall, the only pass ever recorded there |
+| 6 | raise every queue depth | no effect, and **worse** at 32 PEs/node |
+| 7 | debug build for provider logs | logging does not function; failure becomes a pure hang |
+
+Two changes made it worse. One produced a single completion. The diagnostic that would
+have decided between the remaining hypotheses does not run.
+
+Everything reachable from the application, the OpenSHMEM runtime, the provider
+configuration and the transport library has been tried from this two-node cluster. The
+next useful steps all require something this environment cannot supply: more nodes to
+separate a fabric property from two specific machines, a working provider log, or
+upstream engagement with a reproducer.
+
+The reproducer is the deliverable that survives. ISx64 at 64 PEs per node on
+`verbs;ofi_rxm` over `irdma`, livelocking at 98% CPU in `try_again`, with a clean fabric,
+relieved only and unreliably by `shmem_quiet()` after every put, and unaffected by every
+queue and completion parameter. Both prior libfabric issues in this provider pair (#5601,
+#6720) were closed stale, so a reproducer on current hardware is worth filing regardless
+of whether we solve it.
