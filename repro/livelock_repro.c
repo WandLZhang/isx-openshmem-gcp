@@ -1,0 +1,118 @@
+/*
+ * Minimal reproducer: SOS livelocks in try_again on verbs;ofi_rxm over Intel irdma
+ * when many PEs per node each issue an unquiesced all-to-all of one-sided puts.
+ *
+ * Stripped from ISx64 to the smallest thing that still fails. No sort, no key
+ * generation, no verification. Every PE puts a fixed block into every peer's symmetric
+ * buffer, then barriers. That is all.
+ *
+ * OBSERVED (2 x h4d-highmem-192, us-east1-b, libfabric 2.6.0, SOS 1.5.3):
+ *
+ *   PEs/node   result
+ *   16         completes, intermittently: ~2 runs in 10
+ *   32         completes, intermittently
+ *   64         never completes. Every PE spins at ~98% CPU in try_again until it
+ *              exhausts the 2^30 retry budget, then:
+ *                 ERROR: transport_ofi.h:596: try_again
+ *                        Operation retry limit exceeded (1073741824)
+ *
+ * Setting QUIET_EVERY=1 (a shmem_quiet() after every put) is the only configuration
+ * that has ever completed at 64 PEs/node, and only about 1 run in 3.
+ *
+ * NOT the cause, each tested and ruled out:
+ *   - fabric congestion. irdma0 hw_counters show cnpSent/cnpHandled/cnpIgnored all 0,
+ *     InProtoErrors 0, CRC_errors 0, and both nodes pass the vendor health check.
+ *   - transmit queue depth. Raising FI_OFI_RXM_TX_SIZE, FI_OFI_RXM_RX_SIZE,
+ *     FI_VERBS_TX_SIZE, FI_VERBS_RX_SIZE and the RXM_MSG variants to 16384 does not
+ *     help at 64 PEs/node and makes 32 PEs/node worse (2/10 -> 0/10).
+ *   - shared transmit contexts. SHMEM_OFI_STX_AUTO=1 and SHMEM_OFI_STX_MAX=8: no change.
+ *   - completion semantics. Requesting FI_TRANSMIT_COMPLETE instead of
+ *     FI_DELIVERY_COMPLETE (see libfabric#5601) does not change stability.
+ *   - SOS progress strategy. --enable-ofi-manual-progress is a regression, 0/3 where
+ *     the baseline was intermittent.
+ *   - bounce buffering being disabled. Provider mode is 0x0, no FI_CONTEXT, so
+ *     ctx->bounce_buffers is non-NULL and the EAGAIN path does call
+ *     shmem_transport_ofi_drain_cq().
+ *
+ * BUILD (SOS must be configured --enable-ofi-mr=basic --enable-hard-polling; the
+ * provider rejects scalable MR, and it does not support FI_RMA_EVENT which SOS requests
+ * unless hard polling is on):
+ *
+ *   oshcc -O2 -o livelock_repro livelock_repro.c
+ *
+ * RUN:
+ *
+ *   export SHMEM_OFI_PROVIDER="verbs;ofi_rxm" SHMEM_SYMMETRIC_SIZE=1G
+ *   srun -N2 --ntasks-per-node=64 --mpi=pmi2 --export=ALL ./livelock_repro
+ *
+ *   QUIET_EVERY=1 srun ... ./livelock_repro     # the only setting that ever completes
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <time.h>
+#include <shmem.h>
+
+#define BLOCK_WORDS 32768          /* 256 KB per put */
+#define ROUNDS      4
+
+/* ISx claims space in the target's receive buffer with a fetch-and-add against a single
+ * 8-byte counter on that target, once per destination. Every PE therefore hits the same
+ * address on every peer. USE_ATOMIC=1 reproduces that; USE_ATOMIC=0 does puts only. */
+long long receive_offset = 0;
+
+static double now(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+int main(void)
+{
+    shmem_init();
+    const int me = shmem_my_pe(), n = shmem_n_pes();
+
+    /* Symmetric landing zone: one BLOCK_WORDS slot per peer. */
+    uint64_t *recv = shmem_malloc((size_t)n * BLOCK_WORDS * sizeof(uint64_t));
+    uint64_t *send = malloc(BLOCK_WORDS * sizeof(uint64_t));
+    if (!recv || !send) { fprintf(stderr, "PE %d: alloc failed\n", me); shmem_global_exit(1); }
+    for (int i = 0; i < BLOCK_WORDS; ++i) send[i] = (uint64_t)me * BLOCK_WORDS + i;
+
+    const char *q = getenv("QUIET_EVERY");
+    const long quiet_every = q ? atol(q) : 0;
+    const char *a = getenv("USE_ATOMIC");
+    const int use_atomic = a ? atoi(a) : 0;
+
+    if (me == 0) {
+        printf("PEs=%d  block=%d KB  rounds=%d  QUIET_EVERY=%ld  USE_ATOMIC=%d\n",
+               n, BLOCK_WORDS * 8 / 1024, ROUNDS, quiet_every, use_atomic);
+        printf("symmetric per PE = %.1f MB\n",
+               (double)n * BLOCK_WORDS * 8 / 1e6);
+        fflush(stdout);
+    }
+    shmem_barrier_all();
+
+    const double t0 = now();
+    for (int r = 0; r < ROUNDS; ++r) {
+        long since = 0;
+        /* Rotate the start so all PEs do not target rank 0 first. Same as ISx. */
+        for (int i = 0; i < n; ++i) {
+            const int dst = (me + i) % n;
+            /* The contended part: a blocking fetch-add against one address on dst. */
+            if (use_atomic) (void)shmem_atomic_fetch_add(&receive_offset, 1LL, dst);
+            shmem_uint64_put(&recv[(size_t)me * BLOCK_WORDS], send, BLOCK_WORDS, dst);
+            if (quiet_every && ++since >= quiet_every) { shmem_quiet(); since = 0; }
+        }
+        shmem_quiet();
+        shmem_barrier_all();
+        if (me == 0) { printf("  round %d done (%.3f s)\n", r, now() - t0); fflush(stdout); }
+    }
+
+    if (me == 0) printf("COMPLETED in %.3f s\n", now() - t0);
+    shmem_free(recv);
+    free(send);
+    shmem_finalize();
+    return 0;
+}

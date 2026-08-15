@@ -1,0 +1,8 @@
+### does the standalone reproducer actually reproduce? ###
+   16 PEs/node ( 32 PEs) QUIET_EVERY=0 : 2/3 
+   16 PEs/node ( 32 PEs) QUIET_EVERY=1 : 3/3 
+   64 PEs/node (128 PEs) QUIET_EVERY=0 : 2/3 
+   64 PEs/node (128 PEs) QUIET_EVERY=1 : 0/3 
+### is the remote ATOMIC the trigger? 64 PEs/node ###
+  USE_ATOMIC=0 : 1/4 completed  
+  USE_ATOMIC=1 : 0/4 completed  
