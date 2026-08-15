@@ -1,0 +1,25 @@
+=== ISx64 telemetry: 32 PEs (16/node x 2), 4194304 keys/PE, 1.07 GB of keys ===
+  attempt 1: did not complete
+  attempt 2: did not complete
+  completed on attempt 3: wall=3.024s TTS=0.210s all2all=0.043s radix=0.131s
+
+  counter                        0               1             TOTAL
+  ------------------------------------------------------------------
+  InRdmaWrites               1,384           1,392             2,776
+  InRdmaSends                6,624           6,624            13,248
+
+  network utilisation
+    on the wire          : 0.00 GB out, 0.00 GB in
+    key payload          : 1.07 GB
+    wire / payload       : 0.00x
+    exchange aggregate   : 0.00 GB/s over 0.043s of all2all
+    per node             : 0.0 Gbps of 200 Gbps (0.0% of line rate)
+
+  fabric health
+    congestion notices   : sent 0, handled 0, ignored 0
+    protocol errors      : 0
+    CRC errors           : 0
+
+    Zero congestion notifications and zero protocol errors. On a run that
+    completes, the fabric is not congested and is not erroring, which points
+    the instability at the software stack rather than at the network.
