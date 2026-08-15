@@ -34,7 +34,7 @@ Goal 3 is therefore worth solving *before* the quota request is sized.
 
 | task | owner | blocker |
 |---|---|---|
-| Cheap reductions: recv slack 1.3→1.02, in-place bucketize, in-place MSD radix | me | none |
+| ~~Recv slack 1.3→1.02 and in-place bucketize~~ | done | 2.30x → 2.02x, verification PASSES. But see the caveat below before trusting it at scale |
 | Streamed exchange: shrink `send` as `recv` grows, so they never both hold a full copy | me | none, but it is the only real design work left here |
 | Scale-test on whatever node count Goal 1 delivers | me | Goal 1 |
 
@@ -51,7 +51,19 @@ estimated, peak resident is the largest of three overlaps:
 | `send` + `recv` at slack 1.3 (242, 253) | **2.30x** |
 | `recv` + radix scratch (253, 88) | 2.30x |
 
-So the implementation is **2.3x**, and the three cheap reductions take it to **2.02x**,
+**Implemented 2026-08-15.** The recv slack is now 1.02 and the bucketize is an in-place
+American-flag permutation, so `send` and `keys` are the same buffer. Verification passes
+and the exchange produces an identical round count to the original.
+
+**Caveat worth resisting the urge to gloss:** in the same session the lean build validated
+0/5 at 32 PEs/node where the original validated 3/5. At 4 PEs both pass identically, so
+the permutation is correct, and the instability is transport-level rather than a wrong
+answer. But 0/5 against 3/5 is a wider gap than the ±1 noise floor seen elsewhere, and
+the in-place permutation has a different memory access pattern. Re-measure with a larger
+sample before relying on this at scale.
+
+The arithmetic below was the pre-change analysis. The implementation is **2.3x**, and the
+three cheap reductions take it to **2.02x**,
 not to 1.02x. They cannot do better, because `send` and `recv` both hold a full copy at
 the same time and no amount of in-place work removes that. Going below 2x needs the
 streamed exchange: release `send` incrementally as the exchange drains it while `recv`

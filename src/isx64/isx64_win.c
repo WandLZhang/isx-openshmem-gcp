@@ -239,23 +239,40 @@ int main(int argc, char **argv)
     for (uint64_t d = 1; d < NUM_PES; ++d) off[d] = off[d-1] + cnt[d-1];
     uint64_t *cur = malloc(NUM_PES * sizeof(uint64_t));
     memcpy(cur, off, NUM_PES * sizeof(uint64_t));
-    KEY_TYPE *send = malloc(NUM_KEYS_PER_PE * sizeof(KEY_TYPE));
-    if (!send) { fprintf(stderr, "PE %d: send alloc failed\n", shmem_my_pe()); shmem_global_exit(1); }
-    for (uint64_t i = 0; i < NUM_KEYS_PER_PE; ++i) {
-      uint64_t b = keys[i] / BUCKET_WIDTH; if (b >= NUM_PES) b = NUM_PES - 1;
-      send[cur[b]++] = keys[i];
+
+    /* Group by destination IN PLACE, so there is no second full copy of the key array.
+     * American-flag permutation: for each bucket, while its region is not yet filled,
+     * take the element sitting at its cursor and either keep it (already home) or swap
+     * it to its own bucket's cursor. Each swap places one element permanently, so this
+     * is O(n) with O(NUM_PES) scratch instead of O(n).
+     *
+     * Peak resident was max(keys+send, send+recv) = max(2.00x, 2.30x). Dropping `send`
+     * removes the first term; the recv slack below removes most of the second. */
+    for (uint64_t b = 0; b < NUM_PES; ++b) {
+      const uint64_t end = off[b] + cnt[b];
+      while (cur[b] < end) {
+        uint64_t d = keys[cur[b]] / BUCKET_WIDTH; if (d >= NUM_PES) d = NUM_PES - 1;
+        if (d == b) { cur[b]++; }
+        else { KEY_TYPE t = keys[cur[b]]; keys[cur[b]] = keys[cur[d]]; keys[cur[d]] = t; cur[d]++; }
+      }
     }
-    free(keys); free(cur);            /* dropped before the exchange, keeps the peak down */
+    KEY_TYPE *send = keys;            /* same buffer, now in destination order */
+    free(cur);
     t_bucket += now() - t0;
 
-    /* exchange through the fixed window */
-    const uint64_t cap = (uint64_t)(NUM_KEYS_PER_PE * 1.3) + 1024;
+    /* Exchange through the fixed window.
+     * Slack was 1.3, a margin on how unevenly keys land. Keys are uniform over
+     * NUM_PES buckets, so the relative standard deviation of a PE's receive count is
+     * 1/sqrt(keys per bucket); at production sizes that is far under a percent, and 1.02
+     * is still many sigma. This is the single largest memory saving in the file. */
+    const uint64_t cap = (uint64_t)(NUM_KEYS_PER_PE * 1.02) + 4096;
     KEY_TYPE *recv = malloc(cap * sizeof(KEY_TYPE));
     if (!recv) { fprintf(stderr, "PE %d: recv alloc failed\n", shmem_my_pe()); shmem_global_exit(1); }
     t0 = now();
     const uint64_t n = exchange_windowed(send, off, cnt, recv, cap);
     t_exch += now() - t0;
-    free(send); free(off); free(cnt);  /* freed before the sort, so it is not in the peak */
+    free(send); free(off); free(cnt);  /* frees `keys` too, they are the same buffer, so
+                                        * the radix scratch below reuses this memory */
 
     /* local sort */
     t0 = now();
