@@ -74,9 +74,10 @@ framed as Phase 3, not Phase 2.
 
 ## Goal 3 — Reproducibility: consistent across runs
 
-**Measured: 0% on the real benchmark** at 64 PEs/node. The reproducer moved for the first
-time (29% → 71% with `FI_VERBS_GID_IDX=1`) but ISx64 did not: 0/5 either way. So the
-reproducer no longer covers whatever keeps the benchmark at zero.
+**Measured: 40% on the real benchmark** at 32 PEs/node (2/5, both with and without the
+GID fix). The reproducer improved for the first time (57% → 86% at 32 PEs/node with
+`FI_VERBS_GID_IDX=1`) but ISx64 did not move, so the reproducer does not yet cover what
+limits the benchmark.
 
 **Root cause found**, in `results/ROOTCAUSE_connection_establishment.md`: it is
 `ofi_rxm` connection establishment, not the data path. Round 0 costs 47x a steady-state
@@ -116,7 +117,7 @@ configuration that completes 30% of the time on 2 nodes completes approximately 
 | OpenSHMEM PGAS, no MPI | SOS on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
 | RDMA one-sided Get/Put/Atomics | cross-node `shmem_put` verified, target posts no receive; `InRdmaWrites` non-zero in NIC counters |
 | ~~Connectionless semantics~~ | **not met.** The working provider is RC-connected. The connectionless one cannot complete SOS startup. |
-| Correctness validation | PASSED at 16, 32, 64 PEs — but each was a single sample against a 30% success rate |
+| Correctness validation | PASSED repeatedly at 32 PEs/node, 1,073,741,824 keys per run, 2/5 attempts. Validation is correct when it completes; the failures are the transport hang, not wrong answers |
 | Performance stability / inflection points | three identified and quantified |
 
 ---

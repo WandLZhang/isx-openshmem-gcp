@@ -173,15 +173,20 @@ establishment is where the failure lives, so it is where a fix should show up.
 It also confirms the diagnosis independently: a change that only touches address
 resolution should do nothing at all if the problem were in the data path.
 
-Not a complete fix, and it does **not** carry over to the benchmark. Running the real
-windowed ISx64 at 64 PEs/node, five attempts each:
+Not a complete fix, and it does **not** carry over to the benchmark.
 
-| | completed | validated |
-|---|---|---|
-| baseline | 0/5 | 0/5 |
-| `FI_VERBS_GID_IDX=1` | 0/5 | 0/5 |
+An earlier attempt at this measurement reported 0/5 for both arms. That was wrong:
+`isx64win` takes `<keys_per_pe> [iters] <log>` and the log argument was missing, so every
+process exited on a usage error and the benchmark never ran. Corrected, with the
+benchmark actually executing 1,073,741,824 keys per run at 32 PEs/node:
 
-So the reproducer improves from 2/7 to 5/7 while ISx64 stays at zero. The two differ in
+| | validated |
+|---|---|
+| baseline | 2/5 |
+| `FI_VERBS_GID_IDX=1` | 2/5 |
+
+So the reproducer improves (4/7 → 6/7 at 32 PEs/node, 2/7 → 5/7 at 64) while ISx64 does
+not move at all. The two differ in
 several ways: ISx64 uses an 8 GB symmetric heap against the reproducer's 1 GB, issues
 `shmem_atomic_fetch_add` per destination, runs many more operations per exchange, and adds
 key generation and a local sort. Testing those one at a time, with `FI_VERBS_GID_IDX=1` set throughout, identifies the
