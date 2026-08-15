@@ -88,7 +88,7 @@ The H4D provider rejects it and `fi_getinfo` returns no data.
 **`--enable-hard-polling`.** SOS enables target counters unless this is set, which adds
 `FI_RMA_EVENT` to the hints. `verbs;ofi_rxm` on `irdma0` supports neither `FI_RMA_EVENT`
 nor `FI_FENCE`, so `shmem_init()` aborts with `Transport init failed (-61)`. Hard polling
-trades provider-side completion counters for CPU polling. That is a performance decision
+trades provider-side completion counters for CPU polling. This is a performance decision
 forced by the fabric, and it is a plausible contributor to the PEs-per-node wall below.
 
 libfabric also has to be built from source. The HPC VM image ships 1.22.0 from the
@@ -180,7 +180,7 @@ provisioned for exactly this access pattern.
 
 ## 8. Recommendation
 
-For the study as specified, on H4D, the answer is measured and negative: the fabric does
+For the study as specified, on H4D, the measured result is negative. the fabric does
 genuine one-sided RDMA and the benchmark verifies correct across nodes, but 1 PB across
 4,096 endpoints is out of reach by roughly two orders of magnitude, for reasons that are
 fabric properties rather than configuration.

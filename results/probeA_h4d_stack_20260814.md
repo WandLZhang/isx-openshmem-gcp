@@ -72,7 +72,7 @@ provider: verbs;ofi_rxm
 `mpiexec.hydra`, `prterun`, `prun` and `srun` are all absent, and `oshrun` fails with
 "could not find a launcher". SOS bootstraps over PMI-1. On the Slurm cluster the launcher
 is `srun --mpi=pmi2`, which is not MPI. Installing an MPI purely to obtain `mpiexec`
-would leave the data path on OFI but invites a compliance argument that is not worth
+would leave the data path on OFI but invites a compliance argument not worth
 having.
 
 ## Still open

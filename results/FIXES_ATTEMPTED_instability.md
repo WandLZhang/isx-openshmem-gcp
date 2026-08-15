@@ -35,7 +35,7 @@ correctness concern for this stack, and worth reporting to the customer on its o
 but it is not this bug.
 
 A side result. When a run does complete, `FI_TRANSMIT_COMPLETE` gives
-**TTS 0.139 s against 0.213 s**, a 35% improvement. That is a legitimate tuning finding
+**TTS 0.139 s against 0.213 s**, a 35% improvement. This is a tuning finding
 for whenever the stability problem is solved.
 
 ## 4. OSSS-UCX — the architectural alternative, blocked on its own bug
@@ -204,7 +204,7 @@ The remaining moves are all outside application tuning:
 4. **Fix the OSSS-UCX segfault**, which would open a transport path that shares none of
    this code.
 
-## 7. libfabric debug build — the diagnostic itself does not work
+## 7. libfabric debug build
 
 The plan of record after six failed fixes was to stop guessing and get provider-level
 logs. Built libfabric 2.6.0 with `--enable-debug` (confirmed `#define ENABLE_DEBUG 1` in

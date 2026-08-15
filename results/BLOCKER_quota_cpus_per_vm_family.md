@@ -22,7 +22,7 @@ us-east1     {'region': 'us-east1',    'vm_family': 'H4D'}  limit=500
 us-central1  {'region': 'us-central1', 'vm_family': 'H4D'}  limit=500
 ```
 
-`h4d-highmem-192` is 192 vCPU. **500 / 192 = 2.6, so 2 nodes.** That is the entire
+`h4d-highmem-192` is 192 vCPU. **500 / 192 = 2.6, so 2 nodes.** This is the entire
 explanation for a two-node cluster.
 
 ## The quota that binds
@@ -88,5 +88,5 @@ change affects it.
 ## Recommended ask
 
 Request `CPUS_PER_VM_FAMILY` for **H4D = 24,576 in a single region**, sized for 128
-`h4d-highmem-192` nodes in one zone. That is the smallest ask that makes the 4,096-endpoint
+`h4d-highmem-192` nodes in one zone. This is the smallest request that makes the 4,096-endpoint
 criterion testable, and it is the request to put through the capacity escalation path.
