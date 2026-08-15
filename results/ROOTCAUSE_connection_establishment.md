@@ -184,9 +184,27 @@ windowed ISx64 at 64 PEs/node, five attempts each:
 So the reproducer improves from 2/7 to 5/7 while ISx64 stays at zero. The two differ in
 several ways: ISx64 uses an 8 GB symmetric heap against the reproducer's 1 GB, issues
 `shmem_atomic_fetch_add` per destination, runs many more operations per exchange, and adds
-key generation and a local sort. One of those keeps it pinned at zero, and the reproducer
-no longer covers it. Narrowing that gap is now the most useful next step: add the
-distinguishing ingredients to the reproducer one at a time until it stops completing.
+key generation and a local sort. Testing those one at a time, with `FI_VERBS_GID_IDX=1` set throughout, identifies the
+ingredient as **operation count**:
+
+| symmetric heap | rounds | puts per PE | completions |
+|---|---:|---:|---|
+| 1 GB | 4 | 512 | 3/5 |
+| 1 GB | 32 | 4,096 | 2/5 |
+| 1 GB | 128 | **16,384** (what ISx64 issues) | **1/5** |
+| 8 GB | 4 | 512 | 3/5 |
+
+Reliability decays monotonically with the number of operations, and at ISx64's operation
+count the reproducer drops to 1/5, next to the benchmark's 0/5. Symmetric heap size makes
+no difference at all: 8 GB and 1 GB both give 3/5 at the same operation count.
+
+So there is no separate mechanism in ISx64. It fails because it issues 32x more puts, and
+whatever the per-operation hazard is, it accumulates. Note this is not a simple
+independent per-put failure: 0.6 success at 512 puts would give an unmeasurably small
+number at 16,384 if each put were an independent trial, so the hazard is attached to
+something coarser than a single operation. Since connections are established once in
+round 0 and reused, a candidate worth testing next is whether connections are being torn
+down and re-established during a long run.
 
 Manual progress is now cleanly measured as a hard regression (0/7), which reinstates the
 earlier claim that had to be withdrawn for being untestable.

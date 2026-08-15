@@ -87,8 +87,8 @@ round and scales as connections-per-node; failing runs die inside round 0.
 | Isolate the rxd `av insert failed` — if SOS's PMI address exchange assumes a fixed address size, `FI_ADDR_IB_UD` may need a small patch | me | none, this is the highest-value item left |
 | File the livelock upstream with the reproducer | me, **needs Willis's ok to post publicly** | outward-facing |
 | ~~Re-measure manual progress~~ | done | 0/7 at 32 PEs/node, a hard regression |
-| Close the gap between the reproducer and ISx64: add the 8 GB heap, the per-destination atomic, and the higher operation count one at a time until the reproducer stops completing | me | none, and this is now the top item |
-| Then re-test `FI_VERBS_GID_IDX=1` and the staggered warmup against whatever that exposes | me | the above |
+| ~~Close the reproducer/ISx64 gap~~ | done | it is operation count: 512 puts 3/5, 4,096 puts 2/5, 16,384 puts 1/5. Heap size is irrelevant |
+| Test whether connections are torn down and re-established during a long run, since the hazard accumulates faster than per-connection but slower than per-put | me | none, top item |
 | Fix libfabric logging so the CM loop can be seen | me | emits nothing even with `--enable-debug` |
 | Test on a different node pair | me | Goal 1 (needs >2 nodes) |
 | Raise with the H4D / Cloud RDMA product team | Willis | — |

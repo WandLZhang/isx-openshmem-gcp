@@ -88,7 +88,7 @@
 #include <shmem.h>
 
 #define BLOCK_WORDS 32768          /* 256 KB per put */
-#define ROUNDS      4
+#define ROUNDS_DEFAULT 4           /* override with ROUNDS=n; ISx64 does ~128 */
 
 /* ISx claims space in the target's receive buffer with a fetch-and-add against a single
  * 8-byte counter on that target, once per destination. Every PE therefore hits the same
@@ -119,10 +119,15 @@ int main(void)
     const int use_atomic = a ? atoi(a) : 0;
     const char *w = getenv("WARMUP");
     const int warmup = w ? atoi(w) : 0;
+    /* ISx64 at 64 PEs/node issues ~16k puts per PE (128 windowed rounds x 128 peers)
+     * against this reproducer's 512. Operation count is the largest single difference
+     * between them, so make it a variable. */
+    const char *rr = getenv("ROUNDS");
+    const int rounds = rr ? atoi(rr) : ROUNDS_DEFAULT;
 
     if (me == 0) {
         printf("PEs=%d  block=%d KB  rounds=%d  QUIET_EVERY=%ld  USE_ATOMIC=%d\n",
-               n, BLOCK_WORDS * 8 / 1024, ROUNDS, quiet_every, use_atomic);
+               n, BLOCK_WORDS * 8 / 1024, rounds, quiet_every, use_atomic);
         printf("symmetric per PE = %.1f MB\n",
                (double)n * BLOCK_WORDS * 8 / 1e6);
         fflush(stdout);
@@ -147,7 +152,7 @@ int main(void)
     }
 
     const double t0 = now();
-    for (int r = 0; r < ROUNDS; ++r) {
+    for (int r = 0; r < rounds; ++r) {
         long since = 0;
         /* Rotate the start so all PEs do not target rank 0 first. Same as ISx. */
         for (int i = 0; i < n; ++i) {
@@ -159,7 +164,8 @@ int main(void)
         }
         shmem_quiet();
         shmem_barrier_all();
-        if (me == 0) { printf("  round %d done (%.3f s)\n", r, now() - t0); fflush(stdout); }
+        if (me == 0 && (r < 3 || r % 32 == 0))
+            { printf("  round %d done (%.3f s)\n", r, now() - t0); fflush(stdout); }
     }
 
     if (me == 0) printf("COMPLETED in %.3f s\n", now() - t0);
