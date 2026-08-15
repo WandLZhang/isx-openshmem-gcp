@@ -148,6 +148,35 @@ So the remaining failure is narrowed to RMA and atomics on rxd, not to the provi
 basic operation. rxd emulates RMA in software over datagrams, so this is the most likely
 place for it to be incomplete on this hardware.
 
+## The fix: use the routable GID on rxm too
+
+The link-local GID turned out not to be only an rxd problem. `FI_VERBS_GID_IDX=1` was
+never set for `verbs;ofi_rxm` in any earlier test. With `LD_PRELOAD` making a clean A/B
+possible for the first time, seven attempts per cell:
+
+| configuration | 32 PEs/node | 64 PEs/node |
+|---|---|---|
+| auto progress (baseline) | 4/7 (57%) | 2/7 (29%) |
+| **auto progress + `FI_VERBS_GID_IDX=1`** | **6/7 (86%)** | **5/7 (71%)** |
+| manual progress | 0/7 | — |
+| manual progress + `FI_VERBS_GID_IDX=1` | 0/7 | — |
+
+**This is the first change in ten attempts that has improved stability.** It roughly
+doubles the completion rate at 64 PEs/node and takes 32 PEs/node from 57% to 86%.
+
+The mechanism follows from the root cause. rxm connects through `rdma_cm`, and address
+resolution is part of establishing each connection. A link-local GID has no route, so
+resolution is more work and less deterministic per connection, and at 8,192 connections
+per node that amplifies. The routable GID makes each resolution cheap. Connection
+establishment is where the failure lives, so it is where a fix should show up.
+
+It also confirms the diagnosis independently: a change that only touches address
+resolution should do nothing at all if the problem were in the data path.
+
+Not a complete fix. 5/7 is not reproducible in the sense the study requires, and manual
+progress is now cleanly measured as a hard regression (0/7), which reinstates the earlier
+claim that had to be withdrawn for being untestable.
+
 ## What this means for the study
 
 On H4D, an OpenSHMEM runtime can have RDMA one-sided Get/Put/Atomics **or**
@@ -174,10 +203,9 @@ libsma.so.0 => /home/.../isx/lib/libsma.so.0     <- the auto-progress build
 
 Two consequences. The manual-progress-on-rxm numbers collected before that point
 (16 PEs 3/5, 64 PEs 2/5) are baseline numbers, not manual-progress numbers. And the
-earlier claim recorded in `HYPOTHESES_instability.md` and the reproducer header, that
-`--enable-ofi-manual-progress` is a regression at 0/3, is **not supported** — that test
-was very likely running the auto-progress library too. It is withdrawn rather than
-reversed; manual progress on rxm has not been measured cleanly.
+earlier claim that `--enable-ofi-manual-progress` is a regression had to be withdrawn as
+untestable. Re-measured properly with `LD_PRELOAD`, it is **0/7 at 32 PEs/node**, so the
+original claim was right; it just had no valid evidence behind it at the time.
 
 Use `LD_PRELOAD=<prefix>/lib/libsma.so.0` to force the intended runtime, and check with
 `ldd` before trusting any A/B between two SOS builds.
