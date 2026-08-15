@@ -180,7 +180,7 @@ provisioned for exactly this access pattern.
 
 ## 8. Recommendation
 
-For the study as specified, on H4D, the measured result is negative. the fabric does
+For the study as specified, on H4D, the measured result is negative. The fabric does
 genuine one-sided RDMA and the benchmark verifies correct across nodes, but 1 PB across
 4,096 endpoints is out of reach by roughly two orders of magnitude, for reasons that are
 fabric properties rather than configuration.
