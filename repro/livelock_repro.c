@@ -6,18 +6,36 @@
  * generation, no verification. Every PE puts a fixed block into every peer's symmetric
  * buffer, then barriers. That is all.
  *
- * OBSERVED (2 x h4d-highmem-192, us-east1-b, libfabric 2.6.0, SOS 1.5.3):
+ * OBSERVED (2 x h4d-highmem-192, us-east1-b, libfabric 2.6.0, SOS 1.5.3).
+ * Completions out of attempts, ROUNDS=4, 256 KB puts:
  *
- *   PEs/node   result
- *   16         completes, intermittently: ~2 runs in 10
- *   32         completes, intermittently
- *   64         never completes. Every PE spins at ~98% CPU in try_again until it
- *              exhausts the 2^30 retry budget, then:
- *                 ERROR: transport_ofi.h:596: try_again
- *                        Operation retry limit exceeded (1073741824)
+ *   PEs/node  QUIET_EVERY  USE_ATOMIC   result
+ *   16        0            0            2/3
+ *   16        1            0            3/3
+ *   64        0            0            2/3, then 1/4 on a later job = 3/7
+ *   64        1            0            0/3
+ *   64        0            1            0/4
  *
- * Setting QUIET_EVERY=1 (a shmem_quiet() after every put) is the only configuration
- * that has ever completed at 64 PEs/node, and only about 1 run in 3.
+ * On failure every PE spins at ~98% CPU, state R, in try_again until it exhausts the
+ * 2^30 retry budget, then:
+ *     ERROR: transport_ofi.h:596: try_again
+ *            Operation retry limit exceeded (1073741824)
+ *
+ * Three things worth noting for anyone triaging this:
+ *
+ *  1. Puts alone are sufficient. There is no sort, no atomic, and no collective here
+ *     beyond a barrier, and it still fails. Whatever this is, it is below OpenSHMEM.
+ *
+ *  2. shmem_quiet() after every put INVERTS with scale. At 16 PEs/node it helps
+ *     (3/3 vs 2/3). At 64 PEs/node it hurts (0/3 vs 3/7). A per-operation quiet
+ *     serialises the injection but multiplies the number of completion waits, so if
+ *     the stall is in waiting for a completion rather than in queueing, quiescing more
+ *     often makes it strictly more likely to hit.
+ *
+ *  3. The remote atomic is not the trigger, though it may be an aggravator. Adding
+ *     shmem_atomic_fetch_add against one 8-byte counter per target gives 0/4 against
+ *     3/7 without it. Directionally worse and consistent with full ISx64 never passing
+ *     at this size, but 0/4 vs 3/7 is not a significant difference on its own.
  *
  * NOT the cause, each tested and ruled out:
  *   - fabric congestion. irdma0 hw_counters show cnpSent/cnpHandled/cnpIgnored all 0,
