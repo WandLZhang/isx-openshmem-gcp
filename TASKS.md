@@ -76,17 +76,28 @@ framed as Phase 3, not Phase 2.
 
 **Measured: ~30%.** This is the real blocker, and it gates the other two.
 
+**Root cause found**, in `results/ROOTCAUSE_connection_establishment.md`: it is
+`ofi_rxm` connection establishment, not the data path. Round 0 costs 47x a steady-state
+round and scales as connections-per-node; failing runs die inside round 0.
+
 | task | owner | blocker |
 |---|---|---|
-| File the livelock upstream with the standalone reproducer | me, **needs Willis's ok to post publicly** | outward-facing |
-| Fix libfabric logging so the provider can be diagnosed at all | me | logging emits nothing even with `ENABLE_DEBUG 1`; cause unknown |
-| Diagnose the OSSS-UCX segfault | me | opens a transport path sharing none of this code |
+| Isolate the rxd `av insert failed` — if SOS's PMI address exchange assumes a fixed address size, `FI_ADDR_IB_UD` may need a small patch | me | none, this is the highest-value item left |
+| File the livelock upstream with the reproducer | me, **needs Willis's ok to post publicly** | outward-facing |
+| Re-measure manual progress on rxm now that `LD_PRELOAD` makes the A/B valid | me | none |
+| Fix libfabric logging so the CM loop can be seen | me | emits nothing even with `--enable-debug` |
 | Test on a different node pair | me | Goal 1 (needs >2 nodes) |
 | Raise with the H4D / Cloud RDMA product team | Willis | — |
 
-Seven fixes attempted, all recorded in `results/FIXES_ATTEMPTED_instability.md`. Two made
-it worse. The reproducer in `repro/livelock_repro.c` is stripped to puts plus one remote
-atomic and still shows the instability, so this is not an ISx problem.
+Nine fixes attempted, in `results/FIXES_ATTEMPTED_instability.md`. None fixed it. The
+reproducer is stripped to puts alone, no sort and no atomics, and still fails, so this is
+not an ISx problem.
+
+**The connectionless alternative is blocked too.** `verbs;ofi_rxd` exists on this NIC and
+advertises more of what SOS wants than rxm does, but refuses `FI_PROGRESS_AUTO` at
+`fi_getinfo` and then fails at `fi_av_insert` once that is fixed. So on H4D an OpenSHMEM
+runtime gets one-sided RMA with atomics **or** the connectionless semantics the
+requirement asks for, not both.
 
 **Until this is fixed, the other two goals are not worth spending capacity on.** A
 configuration that completes 30% of the time on 2 nodes completes approximately never on
@@ -100,6 +111,7 @@ configuration that completes 30% of the time on 2 nodes completes approximately 
 |---|---|
 | OpenSHMEM PGAS, no MPI | SOS on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
 | RDMA one-sided Get/Put/Atomics | cross-node `shmem_put` verified, target posts no receive; `InRdmaWrites` non-zero in NIC counters |
+| ~~Connectionless semantics~~ | **not met.** The working provider is RC-connected. The connectionless one cannot complete SOS startup. |
 | Correctness validation | PASSED at 16, 32, 64 PEs — but each was a single sample against a 30% success rate |
 | Performance stability / inflection points | three identified and quantified |
 
