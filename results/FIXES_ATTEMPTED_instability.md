@@ -17,7 +17,7 @@ Baseline to beat: **2 of 7 completed at 32 PEs/node**, and **0 of 3 at 64 PEs/no
 | 4 | OSSS-UCX over UCX 1.18 (replaces libfabric entirely) | **0/10** | 0/3 | segfaults in `shmem_init` |
 
 Four failed fixes. The debugging discipline says three or more means the architecture is
-wrong, not the parameter. Stopping here rather than attempting a fifth guess.
+wrong rather than the parameter. Stopping here instead of attempting a fifth guess.
 
 ## 3. FI_TRANSMIT_COMPLETE — the best-supported hypothesis, and it was wrong
 
@@ -34,13 +34,13 @@ inside noise, and the 64 PEs/node wall did not move at all.
 correctness concern for this stack, and worth reporting to the customer on its own terms,
 but it is not this bug.
 
-One useful side result: when a run does complete, `FI_TRANSMIT_COMPLETE` gives
+A side result. When a run does complete, `FI_TRANSMIT_COMPLETE` gives
 **TTS 0.139 s against 0.213 s**, a 35% improvement. That is a legitimate tuning finding
 for whenever the stability problem is solved.
 
 ## 4. OSSS-UCX — the architectural alternative, blocked on its own bug
 
-The reasoning was sound: every remaining hypothesis lives in libfabric's verbs/rxm path,
+The reasoning. Every remaining hypothesis lives in libfabric's verbs/rxm path,
 so replace the layer. OSSS-UCX is OpenSHMEM over UCX, uses no libfabric, stays
 one-sided PGAS, and is not MPI, so it keeps the study responsive.
 
@@ -83,8 +83,8 @@ From `HYPOTHESES_instability.md` plus the above:
   drain the CQ. That theory is dead.
 - The wall tracks **PEs per node**, not total PEs, which points at a per-NIC or per-node
   resource rather than anything global.
-- It is not the completion semantic, not shared transmit contexts, and not SOS's progress
-  strategy.
+- The completion semantic, shared transmit contexts and SOS's progress strategy are all
+  excluded.
 
 ## What to try next, in order
 

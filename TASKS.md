@@ -55,7 +55,7 @@ estimated, peak resident is the largest of three overlaps:
 American-flag permutation, so `send` and `keys` are the same buffer. Verification passes
 and the exchange produces an identical round count to the original.
 
-**Caveat worth resisting the urge to gloss:** in the same session the lean build validated
+**Caveat:** in the same session the lean build validated
 0/5 at 32 PEs/node where the original validated 3/5. At 4 PEs both pass identically, so
 the permutation is correct, and the instability is transport-level rather than a wrong
 answer. But 0/5 against 3/5 is a wider gap than the ±1 noise floor seen elsewhere, and

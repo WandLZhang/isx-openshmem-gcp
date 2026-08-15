@@ -90,6 +90,6 @@ The petabyte target on H4D was previously blocked by something that looked like 
 limit and was in fact an artifact of putting the dataset in registered memory. That is now
 demonstrated fixed, at 381x decoupling with no bandwidth penalty and passing validation.
 
-What remains between here and 1 PB is: footprint work that is well understood, a
-stability bug that is not, and a capacity request. GB200 remains the lower-risk path, but
+Three things remain between here and 1 PB. Footprint work, which is well understood. A
+stability bug, which is not. And a capacity request. GB200 remains the lower-risk path, but
 it is no longer the only one.

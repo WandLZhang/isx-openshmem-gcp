@@ -23,7 +23,7 @@ already there. At step `i`, PE `p` sends to `(p + i) % n`. Every PE targets a **
 destination at each step, and therefore every PE receives from exactly **one** sender per
 step.
 
-That has a consequence worth stating on its own:
+This has a further consequence:
 
 > The symmetric window needs **one** slot per PE, not `NUM_PES` slots.
 
@@ -37,7 +37,7 @@ region at a time, so it can be held as `NUM_PES` separate allocations and freed 
 completes. Memory then falls as the exchange proceeds while `recv` grows, holding the sum
 near one copy plus slack.
 
-## The cost, stated honestly
+## The cost
 
 Inverting the loop **serialises the all-to-all into `n` steps** where the current code
 overlaps every destination within a round. Each step is a single put to a single peer plus
@@ -62,6 +62,6 @@ cluster available for measurement, not written blind.
 
 ## Status
 
-Not implemented. The single-slot-window finding is worth acting on regardless of whether
-the streaming lands, since it is a 25,600x reduction in symmetric heap at the target
-shape and removes a step from the scale-out recipe.
+Not implemented. The single-slot-window finding applies whether or not the streaming
+lands. It reduces the symmetric heap 25,600x at the target shape and removes a step from
+the scale-out recipe.

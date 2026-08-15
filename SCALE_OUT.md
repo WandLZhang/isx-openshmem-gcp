@@ -29,9 +29,8 @@ An endpoint is one OpenSHMEM PE. Per node, on `h4d-highmem-192` (192 vCPU, 1,488
 The footprint multiple is peak resident memory over the key array. It is derived from the
 allocations in `src/isx64/isx64_win.c` and explained in `TASKS.md` under Goal 2.
 
-**Recommendation: do the memory work first.** It is the difference between 1,597 nodes and
-799, and 800 H4D machines in a single zone is already at the edge of the largest pool
-observed anywhere (870). At 1,597 it is not obtainable at all.
+**Do the memory work first.** It sets the node count at 799 instead of 1,597. A single
+zone has held at most 870 H4D machines, so 799 is near that limit and 1,597 is beyond it.
 
 ## Step 2 — the memory work, in priority order
 
@@ -49,8 +48,8 @@ All three are local changes in `src/isx64/isx64_win.c`, no distributed logic tou
 
 ## Step 3 — size the symmetric heap, which grows with PE count
 
-This is the trap. The windowed heap is `NUM_PES × WINDOW_KEYS_PER_PEER × 8` **per PE**,
-so it grows linearly with total PEs:
+The windowed heap is `NUM_PES × WINDOW_KEYS_PER_PEER × 8` **per PE**, so it grows
+linearly with total PEs:
 
 | total PEs | `WINDOW_KEYS_PER_PEER` | heap per PE | heap per node at 32 PEs |
 |---:|---:|---:|---:|
@@ -110,9 +109,9 @@ srun -N800 --ntasks-per-node=32 --mpi=pmi2 --export=ALL \
 | **1 PB and 25,600 endpoints** | **800** | **153,600** |
 
 Self-service is capped at 500 in every region, so both need an approved escalation via
-`the internal capacity escalation path`. Quota is permission, not inventory: confirm the zone actually holds
-the machines separately, since us-central1-a and -b were both exhausted while quota was
-fine.
+`the internal capacity escalation path`. Quota grants permission. It does not reserve machines. Confirm the
+zone holds the machines as a separate step. us-central1-a and us-central1-b were both
+exhausted at a time when quota was sufficient.
 
 ## What must be re-validated when the capacity lands
 

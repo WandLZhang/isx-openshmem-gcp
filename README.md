@@ -100,8 +100,8 @@ Expected tail:
   verification       : PASSED
 ```
 
-This proves the sort is correct. It proves nothing about the fabric: at one PE every put
-is a local memcpy. Never quote a performance number from a stub run.
+This proves the sort is correct. It proves nothing about the fabric, because at one PE
+every put is a local memcpy. Never quote a performance number from a stub run.
 
 ## Building for a cluster
 

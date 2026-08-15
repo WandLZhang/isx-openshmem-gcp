@@ -74,7 +74,7 @@ ISx64 uses an LSD radix sort at 8 bits per pass, 8 passes over the 60-bit space.
 O(n) in received keys and independent of the key space. This also matches what the study
 specifies for the local phase, "bitonic or radix sort".
 
-A consequence worth stating: upstream's verification checked a histogram sum, which is
+Upstream's verification checked a histogram sum, which is
 meaningless once there is no histogram. ISx64 verifies ascending order directly, which is
 a stronger check.
 

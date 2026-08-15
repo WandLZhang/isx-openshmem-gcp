@@ -2,7 +2,7 @@
 
 2026-08-15. This supersedes the ranked hypotheses in `HYPOTHESES_instability.md`. H1
 (`FI_DELIVERY_COMPLETE` not implemented) and H3 (TX queue exhaustion) are both wrong.
-The failure is not in the data path at all.
+The failure occurs during connection establishment.
 
 ## What the timings show
 
@@ -173,7 +173,7 @@ establishment is where the failure lives, so it is where a fix should show up.
 It also confirms the diagnosis independently: a change that only touches address
 resolution should do nothing at all if the problem were in the data path.
 
-Not a complete fix, and it does **not** carry over to the benchmark.
+It is not a complete fix, and it does not carry over to the benchmark.
 
 An earlier attempt at this measurement reported 0/5 for both arms. That was wrong:
 `isx64win` takes `<keys_per_pe> [iters] <log>` and the log argument was missing, so every
@@ -226,9 +226,9 @@ FI_OFI_RXM_CQ_EQ_FAIRNESS         128        data CQ entries read consecutively 
 
 Connection management only progresses during `fi_cq_read`, and only after either 10 ms
 has elapsed or 128 data completions have been consumed. Under a put storm the data CQ is
-never empty, so CM progress is starved in proportion to how much data is in flight. That
-is the missing link: connections are established once and reused, yet more operations
-still means more failures, because operations are what starve the connection manager.
+never empty, so CM progress is starved in proportion to how much data is in flight. This
+explains why more operations cause more failures even though connections are established
+once and reused. The operations themselves starve the connection manager.
 
 Tested at ISx64's operation count (`ROUNDS=128`, 16,384 puts per PE), 64 PEs/node, with
 `FI_VERBS_GID_IDX=1` throughout:

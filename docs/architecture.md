@@ -111,9 +111,9 @@ ISx64 weak scaling, 4.19M keys per PE, 2 nodes:
 | 64 | 0.226 s | 9.52 GB/s | 0.116 s | 0.041 s | **51%** |
 
 The exchange roughly doubles per PE doubling while the local sort stays flat. That is
-correct weak-scaling behaviour, and by 64 PEs the benchmark has entered the regime it
-exists to measure: the fabric, not the CPU. It enters that regime just as the first wall
-arrives.
+correct weak-scaling behaviour. By 64 PEs the benchmark measures the fabric rather than
+the CPU, which is the regime it exists to measure. It reaches that regime at the same
+point as the first wall.
 
 ### Wall 1: 32 PEs per node
 
