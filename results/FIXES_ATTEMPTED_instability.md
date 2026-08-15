@@ -101,3 +101,47 @@ From `HYPOTHESES_instability.md` plus the above:
    irdma, this is worth a Sandia-OpenSHMEM or libfabric issue regardless of whether we
    solve it. Both prior issues in this area were closed stale, so a fresh reproducer on
    current hardware has value.
+
+---
+
+## 5. Bounding operations in flight — first crack in the wall, not a fix
+
+The mechanism nothing had yet addressed: `exchange_keys()` issues `NUM_PES` puts back to
+back and only quiets at the end. The provider reports a transmit queue depth of **2048**,
+and at 64 PEs per node sharing one 200 Gbps NIC the aggregate outstanding count runs far
+past it. That is a plausible source of permanent `-FI_EAGAIN`.
+
+Added `ISX64_THROTTLE`: force `shmem_quiet()` every N puts, 0 restoring upstream
+behaviour. Swept at 64 PEs/node, the wall that had returned 0/3 under **every** previous
+configuration.
+
+| `ISX64_THROTTLE` | 128 PEs | TTS |
+|---:|---|---|
+| 0 (upstream) | 0/3 | — |
+| **1** | **1/3** | 0.576 s |
+| 4 | 0/3 | — |
+| 16, 64 | run did not finish in the window | — |
+
+**THROTTLE=1 is the first configuration in this entire study to complete at 64 PEs per
+node.** Every other attempt, across five different changes, returned 0/3 there.
+
+That is real evidence for the mechanism: the livelock is outstanding-operation
+exhaustion, and bounding in-flight operations relieves it.
+
+It is not a fix, and should not be reported as one:
+
+- **1 of 3 is not reliability.** It converts "never" into "occasionally", which is
+  progress in understanding and not progress toward a usable configuration.
+- **THROTTLE=1 quiets after every single put**, which fully serialises the exchange. TTS
+  is 0.576 s against 0.226 s for 64 PEs unthrottled, roughly 2.5x slower, and it still
+  fails two runs in three.
+- **THROTTLE=4 returns to 0/3**, so there is no smooth knee to tune toward. A parameter
+  that only works at its most extreme setting, and then only sometimes, is a symptom being
+  suppressed rather than a cause being removed.
+
+The honest reading is that in-flight operation count is *a* contributing factor and not
+the whole story. Something else is also wrong, most likely in the provider, which is
+consistent with the two upstream issues closed stale.
+
+The throttle is kept in the source because it is the best diagnostic lever found, and
+because it is the evidence for the mechanism. It is off by default.

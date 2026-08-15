@@ -200,6 +200,13 @@ static KEY_TYPE *exchange_keys(COUNT_TYPE const *const send_offsets,
   const double t0 = now();
   const int my_rank = shmem_my_pe();
   uint64_t total_sent = 0;  /* ISX64: was unsigned int, overflows at 4.3e9 keys */
+  /* Operations in flight before a forced quiet. Tunable so the knee can be measured. */
+  static long throttle = -1;
+  long since_quiet = 0;
+  if (throttle < 0) {
+    const char *e = getenv("ISX64_THROTTLE");
+    throttle = e ? atol(e) : 0;
+  }
 
   const long long int self_off =
       shmem_atomic_fetch_add(&receive_offset, (long long int)sizes[my_rank], my_rank);
@@ -236,6 +243,18 @@ static KEY_TYPE *exchange_keys(COUNT_TYPE const *const send_offsets,
     /* ISX64: shmem_int_put -> shmem_uint64_put. */
     SHMEM_PUT_KEY(&my_bucket_keys[write_off], &bucketed[read_off], (size_t)nsend, target);
     total_sent += (uint64_t)nsend;
+
+    /* ISX64: bound the number of operations in flight.
+     *
+     * Upstream issues NUM_PES puts back to back and only quiets at the end. The H4D
+     * provider reports a transmit queue depth of 2048, and at 64 PEs per node sharing one
+     * 200 Gbps NIC the aggregate outstanding count runs far past that. The symptom is
+     * -FI_EAGAIN returned forever and SOS spinning in try_again until it exhausts its
+     * 2^30 retry budget.
+     *
+     * A periodic quiet caps outstanding operations at ISX64_THROTTLE per PE. 0 disables
+     * it and restores upstream behaviour. */
+    if (throttle && (++since_quiet >= throttle)) { shmem_quiet(); since_quiet = 0; }
   }
 
 #ifdef BARRIER_ATA
