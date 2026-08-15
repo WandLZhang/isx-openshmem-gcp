@@ -74,8 +74,9 @@ framed as Phase 3, not Phase 2.
 
 ## Goal 3 — Reproducibility: consistent across runs
 
-**Measured: 29% baseline, 71% with `FI_VERBS_GID_IDX=1`** at 64 PEs/node. Still the real
-blocker, but it moved for the first time.
+**Measured: 0% on the real benchmark** at 64 PEs/node. The reproducer moved for the first
+time (29% → 71% with `FI_VERBS_GID_IDX=1`) but ISx64 did not: 0/5 either way. So the
+reproducer no longer covers whatever keeps the benchmark at zero.
 
 **Root cause found**, in `results/ROOTCAUSE_connection_establishment.md`: it is
 `ofi_rxm` connection establishment, not the data path. Round 0 costs 47x a steady-state
@@ -86,7 +87,8 @@ round and scales as connections-per-node; failing runs die inside round 0.
 | Isolate the rxd `av insert failed` — if SOS's PMI address exchange assumes a fixed address size, `FI_ADDR_IB_UD` may need a small patch | me | none, this is the highest-value item left |
 | File the livelock upstream with the reproducer | me, **needs Willis's ok to post publicly** | outward-facing |
 | ~~Re-measure manual progress~~ | done | 0/7 at 32 PEs/node, a hard regression |
-| Push past 71%: try `FI_VERBS_GID_IDX=1` combined with the staggered warmup, and at 128+ PEs/node | me | none |
+| Close the gap between the reproducer and ISx64: add the 8 GB heap, the per-destination atomic, and the higher operation count one at a time until the reproducer stops completing | me | none, and this is now the top item |
+| Then re-test `FI_VERBS_GID_IDX=1` and the staggered warmup against whatever that exposes | me | the above |
 | Fix libfabric logging so the CM loop can be seen | me | emits nothing even with `--enable-debug` |
 | Test on a different node pair | me | Goal 1 (needs >2 nodes) |
 | Raise with the H4D / Cloud RDMA product team | Willis | — |
