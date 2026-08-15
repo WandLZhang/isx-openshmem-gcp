@@ -145,3 +145,61 @@ consistent with the two upstream issues closed stale.
 
 The throttle is kept in the source because it is the best diagnostic lever found, and
 because it is the evidence for the mechanism. It is off by default.
+
+## 6. Raising the queue depth — the targeted fix for the mechanism, and it made things worse
+
+If bounding in-flight operations helps (fix 5), the non-serialising version of that fix is
+to raise the queue instead of throttling the application. libfabric exposes this without
+a rebuild.
+
+| configuration | 64 PEs/node | 32 PEs/node |
+|---|---|---|
+| baseline, tx=2048 | 0/3 | 2/10 |
+| `FI_OFI_RXM_TX_SIZE/RX_SIZE=16384` | 0/3 | — |
+| `+ FI_VERBS_TX_SIZE/RX_SIZE=16384` | 0/3 | — |
+| `+ FI_OFI_RXM_MSG_TX_SIZE/RX_SIZE=16384` | 0/3 | — |
+| queues 16384 + `THROTTLE=32` | 0/3 | — |
+| queues 16384 + `THROTTLE=8` | 0/3 | — |
+| queues 16384, throttle off | — | **0/10** |
+
+Raising every queue-depth knob available did not move the wall, and at 32 PEs per node it
+turned an already-poor 2/10 into **0/10**. This is the second change in the study to make
+the failure worse rather than better, after manual progress.
+
+That result also undercuts the simple reading of fix 5. If the livelock were straightforward
+transmit-queue exhaustion, a queue eight times deeper would help and it does not. Whatever
+`THROTTLE=1` is doing, it is not simply keeping the queue under its limit; more likely it
+is changing timing enough to dodge a race.
+
+## Conclusion after six attempts
+
+| # | change | result |
+|---|---|---|
+| 1 | `--enable-ofi-manual-progress` | worse |
+| 2 | STX auto / STX_MAX=8 | no effect |
+| 3 | `FI_TRANSMIT_COMPLETE` | no effect on stability, 35% faster |
+| 4 | OSSS-UCX over UCX | segfault at init |
+| 5 | throttle in-flight ops | 1/3 at the wall, first ever pass, not a fix |
+| 6 | raise all queue depths | no effect, and worse at 32 PEs/node |
+
+Six independent changes across the application, the OpenSHMEM runtime, the provider
+configuration and the entire transport library. Two made it worse. One produced a single
+completion at a wall nothing else passed. None produced a usable configuration.
+
+**This is not an application tuning problem and it should stop being treated as one.**
+The evidence points at the provider or driver: a livelock at 98% CPU, a clean fabric, a
+limit that tracks PEs per node, immunity to every queue and completion parameter, and two
+upstream issues in exactly this provider pair that were closed without fixes.
+
+The remaining moves are all outside application tuning:
+
+1. **libfabric debug build with `FI_LOG_PROV=rxm,verbs`.** Still undone, still the cheapest
+   thing that could name the stuck operation. The release build compiles the log statements
+   out, which is why every earlier logging attempt produced nothing.
+2. **Upstream report.** There is now a clean reproducer: ISx64 at 64 PEs/node on
+   verbs;ofi_rxm over irdma, livelocking in `try_again`, relieved only by
+   `shmem_quiet()` after every put. Both related libfabric issues (#5601, #6720) were
+   closed stale, so a reproducer on current hardware has standalone value.
+3. **A different node pair**, still blocked on `CPUS_PER_VM_FAMILY`.
+4. **Fix the OSSS-UCX segfault**, which would open a transport path that shares none of
+   this code.
