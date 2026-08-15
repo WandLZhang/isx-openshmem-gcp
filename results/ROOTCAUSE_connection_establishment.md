@@ -92,18 +92,61 @@ SOS by instrumenting `query_for_fabric` to dump its own hints:
 
 `data_progress=2` is `FI_PROGRESS_MANUAL`, and `fi_getinfo` now succeeds.
 
-**Blocker 2 — address vector insertion.** Past `fi_getinfo`, rxd fails at startup:
+**Blocker 2 — the link-local GID. Found and fixed.** Past `fi_getinfo`, rxd failed at
+startup with `populate_av: av insert failed`. Instrumenting the bulk `fi_av_insert` to
+retry one address at a time showed each PE inserting **its own** address and failing on
+the peer's:
 
 ```
-WARN:  transport_ofi.c:1290: populate_av
-       av insert failed
-ERROR: init.c:492: shmem_internal_heap_postinit
-       Transport startup failed (4)
+[ISX_AV_DUMP] bulk fi_av_insert returned 1, expected 2, addrlen=32
+  me=0 pe=0 insert->1  fe 80 00 00 00 00 00 00 40 01 c0 ff fe a8 40 04 ...  <-- SELF
+  me=0 pe=1 insert->0  fe 80 00 00 00 00 00 00 40 01 c0 ff fe a8 40 02 ...
+  me=1 pe=0 insert->0  fe 80 00 00 00 00 00 00 40 01 c0 ff fe a8 40 04 ...
+  me=1 pe=1 insert->1  fe 80 00 00 00 00 00 00 40 01 c0 ff fe a8 40 02 ...  <-- SELF
 ```
 
-rxd's `addr_format` is `FI_ADDR_IB_UD`, not the `FI_SOCKADDR_IN` that rxm uses. SOS
-exchanges raw addresses over PMI and inserts them into the AV, and that insert fails.
-Not yet isolated further.
+The addresses are exchanged correctly: PE 0 is `fe80::4001:c0ff:fea8:4004` and PE 1 is
+`...:4002`, matching each node's `GID[0]`. So SOS's PMI exchange is fine. The problem is
+which GID. This NIC is `link_layer: Ethernet`, RoCE v2, and offers two:
+
+```
+GID[0]: fe80::4001:c0ff:fea8:4004, RoCE v2     <- link-local, the libfabric default
+GID[1]: ::ffff:192.168.64.4,       RoCE v2     <- routable IPv4-mapped
+```
+
+A link-local GID has no route, so the UD path cannot build an address handle for a remote
+peer, while the local one needs no resolution. Setting **`FI_VERBS_GID_IDX=1`** selects
+the routable GID and the AV insert succeeds.
+
+This is not specific to SOS. libfabric's own `fi_pingpong` reproduces it exactly:
+
+```
+$ fi_pingpong -p "verbs;ofi_rxd" -e rdm          # default GID index 0
+[error] util/pingpong.c:1580: fi_av_insert: number of addresses inserted = 0;
+                              number of addresses given = 1
+
+$ FI_VERBS_GID_IDX=1 fi_pingpong -p "verbs;ofi_rxd" -e rdm
+  1m   10  =10   20m   0.00s   5521.73 MB/s   189.90 us
+```
+
+`verbs;ofi_rxm` is unaffected by the GID index because it connects through `rdma_cm`,
+which resolves over IP. For a two-line upstream report: on a RoCE v2 NIC whose GID 0 is
+link-local, `verbs;ofi_rxd` is unusable at its default setting, using libfabric's own
+test binary.
+
+**Blocker 3 — RMA over rxd. Still open.** With manual progress and the routable GID, rxd
+initialises and the provider demonstrably moves data (5,521 MB/s on `fi_pingpong`, about
+68% of rxm's 8,154 MB/s at 1 MB). But SOS's one-sided path over rxd exhausts the retry
+limit at **2 PEs**, where rxm is untroubled:
+
+```
+ERROR: transport_ofi.h:596: try_again
+       Operation retry limit exceeded (1073741824)
+```
+
+So the remaining failure is narrowed to RMA and atomics on rxd, not to the provider's
+basic operation. rxd emulates RMA in software over datagrams, so this is the most likely
+place for it to be incomplete on this hardware.
 
 ## What this means for the study
 
@@ -113,7 +156,7 @@ connectionless semantics, not both:
 | provider | one-sided RMA + atomics to SOS | connectionless | usable |
 |---|---|---|---|
 | `verbs;ofi_rxm` | yes | **no**, RC connections | yes, but fails above ~32 PEs/node |
-| `verbs;ofi_rxd` | yes on paper, more caps than rxm | **yes**, UD | no, `av insert failed` |
+| `verbs;ofi_rxd` | messaging yes, RMA no | **yes**, UD | no, RMA hits the retry limit at 2 PEs |
 
 The requirement asks for both at once. That is a fabric-and-stack finding rather than a
 tuning problem, and it belongs in the Failure Analysis deliverable.
@@ -141,9 +184,9 @@ Use `LD_PRELOAD=<prefix>/lib/libsma.so.0` to force the intended runtime, and che
 
 ## Still open
 
-- Why the AV insert fails for `FI_ADDR_IB_UD`. If it is a fixed-size address buffer in
-  SOS's PMI exchange, it may be a small patch, and it would deliver a connectionless
-  OpenSHMEM that both matches the requirement and avoids the failing resource.
+- Why RMA specifically fails over rxd when messaging works. Blockers 1 and 2 are solved,
+  so this is the last thing between the study and a connectionless OpenSHMEM that both
+  matches the fabric requirement and removes the connection setup that breaks rxm.
 - Whether manual progress on rxm helps, now that it can actually be tested.
 - Whether the connection failure is specific to this node pair. Still blocked: 500 vCPU
   is a hard self-service ceiling in all 18 H4D regions and every H4D shape is 192 vCPU,
