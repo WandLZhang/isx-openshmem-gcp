@@ -37,7 +37,19 @@
  *     3/7 without it. Directionally worse and consistent with full ISx64 never passing
  *     at this size, but 0/4 vs 3/7 is not a significant difference on its own.
  *
+ * ROOT CAUSE (2026-08-15): connection establishment, not the data path. Round 0 costs
+ * 47x a steady-state round and scales as connections-per-node = PEs_per_node *
+ * total_PEs (512 -> 8192 is 16.0x; 0.368 -> 6.193 s is 16.8x). Failing runs print no
+ * round at all, so they die inside round 0. WARMUP=1 opens the connections one at a
+ * time first: the 6.2 s moves into the warmup and round 0 drops to 0.098 s, which
+ * confirms the attribution, but completion only goes 0/5 -> 1/5 and the hang moves into
+ * the warmup. So it is not concurrency of connection setup, it is that establishing
+ * ~8k connections per node on this provider is unreliable. See
+ * results/ROOTCAUSE_connection_establishment.md.
+ *
  * NOT the cause, each tested and ruled out:
+ *   - QP count limits. irdma0 reports max_qp = 899,068.
+ *   - shared receive contexts. FI_OFI_RXM_USE_SRX=1 gives 0/5, and 0/5 with warmup.
  *   - fabric congestion. irdma0 hw_counters show cnpSent/cnpHandled/cnpIgnored all 0,
  *     InProtoErrors 0, CRC_errors 0, and both nodes pass the vendor health check.
  *   - transmit queue depth. Raising FI_OFI_RXM_TX_SIZE, FI_OFI_RXM_RX_SIZE,
@@ -46,8 +58,10 @@
  *   - shared transmit contexts. SHMEM_OFI_STX_AUTO=1 and SHMEM_OFI_STX_MAX=8: no change.
  *   - completion semantics. Requesting FI_TRANSMIT_COMPLETE instead of
  *     FI_DELIVERY_COMPLETE (see libfabric#5601) does not change stability.
- *   - SOS progress strategy. --enable-ofi-manual-progress is a regression, 0/3 where
- *     the baseline was intermittent.
+ *   - (WITHDRAWN) "SOS manual progress is a regression, 0/3". oshcc embeds an RPATH
+ *     that overrides LD_LIBRARY_PATH, so that test was almost certainly running the
+ *     auto-progress libsma. Manual progress on rxm has not been cleanly measured.
+ *     Force the runtime with LD_PRELOAD and verify with ldd.
  *   - bounce buffering being disabled. Provider mode is 0x0, no FI_CONTEXT, so
  *     ctx->bounce_buffers is non-NULL and the EAGAIN path does call
  *     shmem_transport_ofi_drain_cq().
@@ -63,7 +77,8 @@
  *   export SHMEM_OFI_PROVIDER="verbs;ofi_rxm" SHMEM_SYMMETRIC_SIZE=1G
  *   srun -N2 --ntasks-per-node=64 --mpi=pmi2 --export=ALL ./livelock_repro
  *
- *   QUIET_EVERY=1 srun ... ./livelock_repro     # the only setting that ever completes
+ *   QUIET_EVERY=1 srun ... ./livelock_repro     # helps at 16 PEs/node, hurts at 64
+ *   WARMUP=1      srun ... ./livelock_repro     # moves connection cost out of round 0
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,6 +117,8 @@ int main(void)
     const long quiet_every = q ? atol(q) : 0;
     const char *a = getenv("USE_ATOMIC");
     const int use_atomic = a ? atoi(a) : 0;
+    const char *w = getenv("WARMUP");
+    const int warmup = w ? atoi(w) : 0;
 
     if (me == 0) {
         printf("PEs=%d  block=%d KB  rounds=%d  QUIET_EVERY=%ld  USE_ATOMIC=%d\n",
@@ -111,6 +128,23 @@ int main(void)
         fflush(stdout);
     }
     shmem_barrier_all();
+
+    /* Round 0 costs 47x a steady-state round and scales as PEs_per_node * total_PEs,
+     * which is the connection count per node, not the byte count. ofi_rxm is
+     * connection-oriented over verbs RC and establishes lazily on first message, so an
+     * all-to-all makes every PE open every connection at once. WARMUP=1 opens them one
+     * at a time instead: an 8-byte put to each peer, quiesced, in rotated order. */
+    if (warmup) {
+        const double w0 = now();
+        static uint64_t probe = 0;
+        for (int i = 0; i < n; ++i) {
+            const int dst = (me + i) % n;
+            shmem_uint64_put(&recv[(size_t)me * BLOCK_WORDS], &probe, 1, dst);
+            shmem_quiet();
+        }
+        shmem_barrier_all();
+        if (me == 0) { printf("  warmup %.3f s\n", now() - w0); fflush(stdout); }
+    }
 
     const double t0 = now();
     for (int r = 0; r < ROUNDS; ++r) {

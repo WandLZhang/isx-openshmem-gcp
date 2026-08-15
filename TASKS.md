@@ -34,24 +34,41 @@ Goal 3 is therefore worth solving *before* the quota request is sized.
 
 | task | owner | blocker |
 |---|---|---|
-| Reduce ISx64 footprint 2.6x → ~1.02x: recv slack 1.3→1.02, in-place MSD radix, streamed send | me | none |
-| Re-validate the windowed exchange at the reduced footprint | me | none |
+| Cheap reductions: recv slack 1.3→1.02, in-place bucketize, in-place MSD radix | me | none |
+| Streamed exchange: shrink `send` as `recv` grows, so they never both hold a full copy | me | none, but it is the only real design work left here |
 | Scale-test on whatever node count Goal 1 delivers | me | Goal 1 |
 
 The symmetric-heap ceiling that made this look impossible is **solved in software**:
 `src/isx64/isx64_win.c` holds the heap at 4.2 MB/PE while the dataset grows 381x, with
 flat throughput and passing validation.
 
-What remains is arithmetic, not architecture:
+What remains is arithmetic. Read off the allocations in `isx64_win.c` rather than
+estimated, peak resident is the largest of three overlaps:
 
-| footprint | keys/node | nodes for 1 PB | vs 870-node zone |
-|---:|---:|---:|---|
-| 2.6x as implemented | 563 GB | 1,776 | too many |
-| **1.02x after the three reductions** | **1,435 GB** | **697** | **fits** |
+| overlap | multiple of the key array |
+|---|---:|
+| `keys` + `send` (lines 224, 242) | 2.00x |
+| `send` + `recv` at slack 1.3 (242, 253) | **2.30x** |
+| `recv` + radix scratch (253, 88) | 2.30x |
 
-**Realistic near-term target is not 1 PB.** At the 128 nodes Goal 1 asks for, even a
-perfect footprint gives ~180 TB. 1 PB needs ~700 nodes in one zone, which is a much larger
-capacity conversation and should be framed as Phase 3, not Phase 2.
+So the implementation is **2.3x**, and the three cheap reductions take it to **2.02x**,
+not to 1.02x. They cannot do better, because `send` and `recv` both hold a full copy at
+the same time and no amount of in-place work removes that. Going below 2x needs the
+streamed exchange: release `send` incrementally as the exchange drains it while `recv`
+fills, which holds the sum near one copy plus slack.
+
+Per node, on 1,488 GB with the 4,096-PE window heap and OS taking about 48 GB:
+
+| footprint | keys/node | nodes for 1 PB |
+|---|---:|---:|
+| 2.30x as implemented | 626 GB | 1,597 |
+| 2.02x after the cheap reductions | 713 GB | 1,403 |
+| ~1.15x streamed | 1,252 GB | **799** |
+
+**Realistic near-term target is not 1 PB.** At the 128 nodes Goal 1 asks for, even the
+streamed footprint gives about 160 TB. 1 PB needs roughly 800 nodes in one zone even
+after all the memory work, which is a much larger capacity conversation and should be
+framed as Phase 3, not Phase 2.
 
 ---
 
