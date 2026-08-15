@@ -1,0 +1,35 @@
+symmetric heap pinned at 256M/PE for every run below
+
+=== 10000000 keys/PE => 2.6 GB total (attempt 2) ===
+  SYMMETRIC per PE    : 4.2 MB   <-- fixed, independent of dataset
+  dataset per PE      : 0.080 GB  <-- ordinary memory, unregistered
+  ratio dataset/heap  : 19.1x
+  exchange rounds     : 20
+  time to solution    : 0.864 s
+    exchange  0.451
+    radix     0.316
+  aggregate rate      : 2.96 GB/s
+  verification        : PASSED
+
+=== 50000000 keys/PE => 12.8 GB total (attempt 2) ===
+  SYMMETRIC per PE    : 4.2 MB   <-- fixed, independent of dataset
+  dataset per PE      : 0.400 GB  <-- ordinary memory, unregistered
+  ratio dataset/heap  : 95.4x
+  exchange rounds     : 96
+  time to solution    : 4.399 s
+    exchange  2.344
+    radix     1.618
+  aggregate rate      : 2.91 GB/s
+  verification        : PASSED
+
+=== 200000000 keys/PE => 51.2 GB total (attempt 1) ===
+  SYMMETRIC per PE    : 4.2 MB   <-- fixed, independent of dataset
+  dataset per PE      : 1.600 GB  <-- ordinary memory, unregistered
+  ratio dataset/heap  : 381.5x
+  exchange rounds     : 383
+  time to solution    : 17.773 s
+    exchange  9.629
+    radix     6.454
+  aggregate rate      : 2.88 GB/s
+  verification        : PASSED
+
