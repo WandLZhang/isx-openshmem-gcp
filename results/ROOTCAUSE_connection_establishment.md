@@ -214,6 +214,42 @@ down and re-established during a long run.
 Manual progress is now cleanly measured as a hard regression (0/7), which reinstates the
 earlier claim that had to be withdrawn for being untestable.
 
+## Why the hazard grows with operation count: CM progress is starved by data
+
+Two rxm defaults explain it:
+
+```
+FI_OFI_RXM_CM_PROGRESS_INTERVAL   10000 us   between connection-management progress calls
+FI_OFI_RXM_CQ_EQ_FAIRNESS         128        data CQ entries read consecutively before
+                                             checking whether CM progress is due
+```
+
+Connection management only progresses during `fi_cq_read`, and only after either 10 ms
+has elapsed or 128 data completions have been consumed. Under a put storm the data CQ is
+never empty, so CM progress is starved in proportion to how much data is in flight. That
+is the missing link: connections are established once and reused, yet more operations
+still means more failures, because operations are what starve the connection manager.
+
+Tested at ISx64's operation count (`ROUNDS=128`, 16,384 puts per PE), 64 PEs/node, with
+`FI_VERBS_GID_IDX=1` throughout:
+
+| setting | completions |
+|---|---|
+| baseline | 1/5 |
+| `FI_OFI_RXM_CM_PROGRESS_INTERVAL=1000` | 1/5 |
+| `FI_OFI_RXM_CM_PROGRESS_INTERVAL=100` | 1/5 |
+| **`FI_OFI_RXM_CQ_EQ_FAIRNESS=1`** | **3/5** |
+
+Lowering the time interval does nothing, which makes sense: the interval is not what is
+binding when the CQ always has work. Forcing a CM-progress check after **every** data
+completion triples the completion rate at the operation count where the benchmark lives.
+
+This is the second fix found, and unlike the GID setting it was predicted from the
+mechanism before it was measured, which is a reasonable check on the diagnosis.
+
+Still to do: verify `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` on the real ISx64 rather than the
+reproducer, and try it combined with `FI_VERBS_GID_IDX=1` and the staggered warmup.
+
 ## What this means for the study
 
 On H4D, an OpenSHMEM runtime can have RDMA one-sided Get/Put/Atomics **or**

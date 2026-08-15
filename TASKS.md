@@ -89,7 +89,8 @@ round and scales as connections-per-node; failing runs die inside round 0.
 | File the livelock upstream with the reproducer | me, **needs Willis's ok to post publicly** | outward-facing |
 | ~~Re-measure manual progress~~ | done | 0/7 at 32 PEs/node, a hard regression |
 | ~~Close the reproducer/ISx64 gap~~ | done | it is operation count: 512 puts 3/5, 4,096 puts 2/5, 16,384 puts 1/5. Heap size is irrelevant |
-| Test whether connections are torn down and re-established during a long run, since the hazard accumulates faster than per-connection but slower than per-put | me | none, top item |
+| ~~Why the hazard grows with operation count~~ | done | CM progress is starved by data CQ traffic. `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` gives 3/5 against 1/5 at ISx64's operation count |
+| Verify `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` on the real ISx64, and combined with the GID setting and the warmup | me | none, top item |
 | Fix libfabric logging so the CM loop can be seen | me | emits nothing even with `--enable-debug` |
 | Test on a different node pair | me | Goal 1 (needs >2 nodes) |
 | Raise with the H4D / Cloud RDMA product team | Willis | — |
