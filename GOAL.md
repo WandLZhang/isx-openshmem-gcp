@@ -81,6 +81,7 @@ Tracked honestly. See `results/` for the underlying measurements.
 |---|---|
 | OpenSHMEM PGAS, no MPI | **met.** SOS 1.5.3 on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
 | RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive |
+| Per-packet adaptive routing | **not met.** Falcon uses multipath subflows by design, not packet spraying; the verbs layer sees plain RoCE v2 with DCQCN and no path-selection interface; zero out-of-order packets measured across all traffic. Two nodes cannot separate "no AR" from "no AR needed". `results/adaptive_routing.md` |
 | Connectionless fabric semantics | **not met.** `verbs;ofi_rxm` uses reliable connections. `verbs;ofi_rxd` is connectionless; two of its three blockers were solved, and its RMA path still reaches the retry limit at 2 PEs. `results/ROOTCAUSE_connection_establishment.md` |
 | >= 4,096 endpoints | **descoped to a plan.** 128 PEs demonstrated. Needs 128 nodes and 24,576 vCPU. `SCALE_OUT.md`, `results/BLOCKER_quota_cpus_per_vm_family.md` |
 | > 1 PB in-memory | **descoped to a plan.** 17 GB largest verified run. The heap ceiling is solved in software; 1 PB needs about 800 nodes after the memory work. `SCALE_OUT.md` |
