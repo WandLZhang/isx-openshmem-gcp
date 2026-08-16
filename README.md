@@ -198,6 +198,7 @@ python3 probes/tpu_int64.py --n 4194304
 | Operational readiness, six tests | `results/operational_plausibility.md` |
 | Telemetry available on H4D | `results/D3_telemetry.md` |
 | Scaling to a petabyte | `SCALE_OUT.md` |
+| What the right machine family is, derived rather than assumed | `docs/first_principles.md` |
 | Requirements, verbatim, with status | `GOAL.md` |
 
 Upstream issues: [ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673),
