@@ -57,6 +57,22 @@ ISx is a distributed parallel bucket sort on 64-bit unsigned integers (`uint64_t
 
 ---
 
+## Scope change, 2026-08-15
+
+The Scale criterion was renegotiated during the work. The requirement above is recorded
+verbatim and unchanged; this section records what was agreed instead.
+
+`CPUS_PER_VM_FAMILY` for H4D is 500 in every region that offers it, which is two nodes,
+and self-service override is refused at every increment from 1,000 to 5,000. All three
+H4D shapes are 192 vCPU, so no smaller machine works around it. Demonstrating 4,096
+endpoints needs 128 nodes and 1 PB needs roughly 800, neither of which is reachable
+without an approved capacity escalation.
+
+The agreed substitute is a handoff: a plan the HPC team can execute when capacity is
+granted, precise enough that nobody re-derives the arithmetic. That is `SCALE_OUT.md`,
+and the escalation itself is drafted. Scale is therefore tracked below as descoped rather
+than as failed, and the demonstration remains outstanding.
+
 ## Status against these criteria
 
 Tracked honestly. See `results/` for the underlying measurements.
@@ -64,14 +80,15 @@ Tracked honestly. See `results/` for the underlying measurements.
 | requirement | status |
 |---|---|
 | OpenSHMEM PGAS, no MPI | **met.** SOS 1.5.3 on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
-| RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive. `FI_RMA_EVENT` and `FI_FENCE` unsupported; both have configure workarounds |
-| >= 4,096 endpoints | **not met, quota-blocked.** 64 PEs on 2 nodes. `CPUS_PER_VM_FAMILY` for H4D is 500/region = 2 nodes, and self-service override is refused. Needs 24,576. `results/BLOCKER_quota_cpus_per_vm_family.md` |
-| > 1 PB in-memory | **not met, no longer blocked.** 51.2 GB largest verified run. The heap ceiling is solved in software: `src/isx64/isx64_win.c` holds the symmetric heap at 4.2 MB/PE while the dataset grows 381x, throughput flat, validation passing. 1 PB now needs ~700 nodes rather than ~37,500. See `results/BREAKTHROUGH_windowed_exchange_20260815.md` |
-| Correctness validation | **met when runs complete.** PASSED at 16, 32, 64 PEs, but each was a single sample against a ~30% success rate |
-| Reproducibility | **not met, quantified.** 10 identical runs at 32 PEs: 2 of 7 completed passed (~30%). Timing is tight when it completes (0.213 vs 0.214 s); failure is binary. `results/BLOCKER_reproducibility_20260814.md` |
+| RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive |
+| Connectionless fabric semantics | **not met.** `verbs;ofi_rxm` uses reliable connections. `verbs;ofi_rxd` is connectionless; two of its three blockers were solved, and its RMA path still reaches the retry limit at 2 PEs. `results/ROOTCAUSE_connection_establishment.md` |
+| >= 4,096 endpoints | **descoped to a plan.** 128 PEs demonstrated. Needs 128 nodes and 24,576 vCPU. `SCALE_OUT.md`, `results/BLOCKER_quota_cpus_per_vm_family.md` |
+| > 1 PB in-memory | **descoped to a plan.** 17 GB largest verified run. The heap ceiling is solved in software; 1 PB needs about 800 nodes after the memory work. `SCALE_OUT.md` |
+| Correctness validation | **met when runs complete.** PASSED at 4, 64 and 128 PEs, largest 2,147,483,648 keys. Failures are transport hangs, not wrong answers |
+| Reproducibility | **not met, quantified.** 35-45% at 64 PEs/node over 20 runs per arm. Root cause identified as `ofi_rxm` connection establishment; ten fixes measured, none moved the benchmark |
 | Performance stability / inflection points | **met.** Three identified: 32 PEs/node ceiling, all2all crossover at 64 PEs, low-PE jitter |
-| Deliverable 1, source code | **met.** ISx64 uint64 port, `src/isx64`, plus the two SOS build flags H4D requires |
+| Deliverable 1, source code | **met.** uint64 port with three exchange schedules, plus the SOS build flags H4D requires |
 | Deliverable 2, provisioning recipe | **met and exercised.** `infra/h4d`, deployed end to end in a clean project |
-| Deliverable 3, execution artifacts | **partial.** TTS and phase breakdown captured; no network or memory-bandwidth telemetry |
+| Deliverable 3, execution artifacts | **met, with a documented limitation.** No byte counter on H4D tracks RoCE; bandwidth is derived from payload and wall time. `results/D3_telemetry.md` |
 | Deliverable 4, architectural narrative | **met.** `docs/architecture.md` |
-| Deliverable 5, failure analysis | **in progress.** `results/`, including one retracted claim |
+| Deliverable 5, failure analysis | **met.** `results/ROOTCAUSE_connection_establishment.md`, with reproducers and two upstream issues filed. Includes three retracted claims and why each was wrong |
