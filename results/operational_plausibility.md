@@ -39,18 +39,33 @@ A failure discards the whole sort, since ISx has no intermediate state to resume
 At this run length that is tolerable and argues for retry rather than checkpointing; see
 the arithmetic at the end.
 
-## D. Failure mode: measuring
+## D. Failure mode: PASS. Clean, bounded, and the node survives
 
-The operationally important question is whether a failed run self-aborts and frees the
-allocation, or wedges and needs a human. Every measurement in this study wrapped the run
-in `timeout 200`, which masked the natural failure duration. Slurm job 101 removes the
-bound and records time to failure over 10 runs, plus whether the node is still usable
-afterwards. Result to be appended here.
+Ten runs at 64 PEs/node with the timeout removed:
 
-What is already known: the failure path ends in
-`ERROR: transport_ofi.h:596: try_again — Operation retry limit exceeded (1073741824)`,
-so it does terminate rather than hang forever. The retry budget is 2^30, and how long
-that takes to exhaust is what job 101 measures.
+| outcome | count | duration |
+|---|---:|---|
+| self-aborted, retry limit | 9 | 235-244 s, mean 237 s |
+| PASSED | 1 | 40 s |
+
+The failure path is well behaved for an operator. It always terminates, it never wedges,
+and the duration is tight: 235 to 244 seconds across nine failures, which is the 2^30
+retry budget draining at a near-constant rate. Nothing needed a human.
+
+The node is undamaged. A 4-PE run immediately after the nine failures passed in 0.010 s,
+and both NICs still reported one active port.
+
+Two consequences for the wrapper in `infra/h4d/run_isx64.sh`:
+
+- A timeout above 244 s is pointless, since the application aborts itself first. The
+  wrapper's 300 s is therefore a backstop rather than the mechanism.
+- **237 seconds per failed attempt is the real operational cost.** At a 60-75% failure
+  rate, five attempts average about 15 minutes of allocation burned before a success.
+  This is what makes the pre-flight check worth having: it fails in seconds instead.
+
+One measurement worth flagging rather than smoothing over: the single passing run took
+40 s, where earlier passing runs at this size took 3.5 to 4.4 s. Time to solution is not
+stable even on success.
 
 ## E. Survives host maintenance: FAIL, by configuration
 
