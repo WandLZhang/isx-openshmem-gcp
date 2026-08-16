@@ -27,7 +27,7 @@ An endpoint is one OpenSHMEM PE. Per node, on `h4d-highmem-192` (192 vCPU, 1,488
 | **1.15x, after the streamed exchange** | **1,252 GB** | **799** | **25,568** |
 
 The footprint multiple is peak resident memory over the key array. It is derived from the
-allocations in `src/isx64/isx64_win.c` and explained in `TASKS.md` under Goal 2.
+allocations in `src/isx64/isx64_win.c` and explained in the README under Goal 2.
 
 **Do the memory work first.** It sets the node count at 799 instead of 1,597. A single
 zone has held at most 870 H4D machines, so 799 is near that limit and 1,597 is beyond it.

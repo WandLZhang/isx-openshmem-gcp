@@ -7,6 +7,67 @@ ISx is a distributed bucket sort. It measures unstructured all-to-all bisection 
 rather than compute. The target for this study is more than 1 PB of `uint64` keys across
 4,096 or more endpoints, using OpenSHMEM one-sided RMA. MPI is out of scope.
 
+## Results
+
+The study asked whether Google Cloud can run an OpenSHMEM PGAS workload that sorts more
+than 1 PB across 4,096 or more endpoints. On H4D, it cannot today. Four requirements are
+met, four are not, and the reasons differ.
+
+| requirement | result | why |
+|---|---|---|
+| OpenSHMEM PGAS, no MPI | **met** | Sandia OpenSHMEM on libfabric. No MPI in the data path |
+| RDMA one-sided Get/Put/Atomics | **met** | Cross-node put verified; the target posts no receive |
+| Correctness | **met** | Validated to 2,147,483,648 keys across 128 endpoints |
+| Performance stability | **met** | Three inflection points identified and quantified |
+| Reproducibility | **not met** | 34% of runs complete at 64 processes per node, over 120 runs |
+| Scale | **not met** | 128 endpoints and 17 GB reached, against 4,096 and 1 PB |
+| Connectionless fabric | **not met** | The working provider uses reliable connections |
+| Per-packet adaptive routing | **not met** | The fabric routes per subflow, not per packet |
+
+All five contract deliverables are complete: source, provisioning recipe, execution
+artifacts, architectural narrative and failure analysis.
+
+### What limits it
+
+**One software defect explains both Reproducibility and Connectionless.** The libfabric
+`verbs;ofi_rxm` provider fails to establish connections reliably once a node holds
+several thousand of them. The cost of the first exchange round scales with connections
+per node, not with bytes moved, and runs that fail do so during that round. The
+connectionless provider that would avoid the problem entirely, `verbs;ofi_rxd`, cannot
+complete OpenSHMEM startup on this hardware. Both are filed upstream with reproducers, one
+of which uses libfabric's own test binary.
+
+**Scale is a capacity limit, not a technical one.** H4D quota is fixed at 500 vCPU per
+region and every self-service increase is refused. All three H4D machine shapes are 192
+vCPU, so a project is capped at two nodes. Reaching 4,096 endpoints needs 128 nodes;
+1 PB needs about 800.
+
+**Adaptive routing is an architecture mismatch rather than a gap.** The requirement
+describes Ultra Ethernet behaviour. Google's Falcon transport deliberately chose multipath
+subflows over per-packet spraying, because per-packet routing reorders packets and RoCE
+treats reordering as loss. Falcon's published results claim up to 8x lower completion
+times than the alternative. If the underlying goal is to use all available paths and react
+to congestion, the fabric does that. If the requirement is literal, it does not.
+
+**Operational readiness has a second, independent problem.** H4D cannot live-migrate, so
+a host maintenance event ends a run. This is unaffected by any of the above and would
+remain after the software defect is fixed. At 800 nodes a run has 800 chances to be
+interrupted. Retrying is the right answer at this run length, and
+`infra/h4d/run_isx64.sh` implements it.
+
+### Actions
+
+| action | depends on |
+|---|---|
+| Approve H4D quota of 24,576 vCPU in one region, 128 nodes | capacity approval |
+| Confirm the zone holds the machines. Quota is permission, not reservation | capacity team |
+| Resolve the connection establishment defect | libfabric and Sandia OpenSHMEM maintainers |
+| Decide whether subflow multipath satisfies the adaptive routing requirement | customer |
+| Reconsider the scale target. No published ISx run exceeds about 96 endpoints or 26 GB, and this study already passed both | customer |
+
+`SCALE_OUT.md` holds the node counts, memory arithmetic and configuration for a petabyte
+run, so no part of it needs deriving again once capacity is granted.
+
 ## Implementations
 
 | path | model | transport |
@@ -128,25 +189,19 @@ apply to JAX with `jax_enable_x64`.
 python3 probes/tpu_int64.py --n 4194304
 ```
 
-## Limits
+## Detail behind the results
 
-**Scale.** The study target is not demonstrated here. This project reached 128 endpoints
-and 17 GB. H4D quota is capped at 500 vCPU per region without an approved escalation,
-which is two nodes. [SCALE_OUT.md](SCALE_OUT.md) gives the node counts, memory arithmetic
-and configuration for 1 PB across 25,600 endpoints.
+| topic | file |
+|---|---|
+| Connection establishment defect, with reproducer | `results/ROOTCAUSE_connection_establishment.md` |
+| Adaptive routing evidence | `results/adaptive_routing.md` |
+| Operational readiness, six tests | `results/operational_plausibility.md` |
+| Telemetry available on H4D | `results/D3_telemetry.md` |
+| Scaling to a petabyte | `SCALE_OUT.md` |
+| Requirements, verbatim, with status | `GOAL.md` |
 
-**Reproducibility.** Runs complete between 20% and 60% of the time above 32 PEs per node.
-The cause is `ofi_rxm` connection establishment, which scales as
-`PEs_per_node × total_PEs`. Filed as
-[ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673) and
+Upstream issues: [ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673),
 [Sandia-OpenSHMEM/SOS#1239](https://github.com/Sandia-OpenSHMEM/SOS/issues/1239).
-
-**Connectionless fabric.** The study requires connectionless semantics. `verbs;ofi_rxm`
-uses reliable connections. `verbs;ofi_rxd` is connectionless but cannot complete SOS
-startup, and its RMA path reaches the retry limit at 2 PEs.
-
-**Memory.** ISx64 holds 2.02x the key array resident at peak. `docs/streamed_exchange_design.md`
-describes the change that would reduce this to about 1.15x.
 
 ## Porting notes
 
