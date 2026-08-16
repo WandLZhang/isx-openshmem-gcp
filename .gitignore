@@ -3,4 +3,3 @@ bin/
 *.log
 __pycache__/
 .venv/
-.venv/

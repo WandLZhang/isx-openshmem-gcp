@@ -121,7 +121,7 @@ export FI_VERBS_GID_IDX=1              # GID 0 is link-local on this NIC
 export FI_OFI_RXM_CQ_EQ_FAIRNESS=1
 ```
 
-`infra/h4d/` provisions the cluster. `infra/h4d/02_build_sos.sh` builds the runtime and
+`infra/h4d/` provisions the cluster. `infra/h4d/01_build_sos.sh` builds the runtime and
 records five steps the vendor documentation omits.
 
 ## Measured results

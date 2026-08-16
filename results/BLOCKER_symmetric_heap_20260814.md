@@ -1,4 +1,11 @@
-# Dominant blocker: aggregate symmetric heap caps at ~32 GB per node
+# SUPERSEDED: aggregate symmetric heap caps at ~32 GB per node
+
+**The ceiling described below is real, and it stopped being a blocker on 2026-08-15.**
+`src/isx64/isx64_win.c` holds the symmetric heap at a fixed size while the dataset grows,
+so the cap no longer bounds dataset size. See
+`BREAKTHROUGH_windowed_exchange_20260815.md`. Kept for the measurements.
+
+## Original document
 
 Measured 2026-08-14 on two `h4d-highmem-192-lssd` in `us-east1-b`. libfabric 2.6.0,
 Sandia OpenSHMEM 1.5.3, `verbs;ofi_rxm` on `irdma0`. Nodes have 1,464 GB usable and Slurm

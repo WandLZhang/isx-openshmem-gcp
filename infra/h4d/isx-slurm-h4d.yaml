@@ -16,19 +16,19 @@ blueprint_name: isx-slurm-h4d
 vars:
   project_id: ## Set GCP Project ID Here ##
   deployment_name: isx-h4d
-  region: us-central1
-  zone: us-central1-b   # ISX64: DWS h4d-highmem capacity lives in -b, not -a
-  rdma_net_range: 192.168.128.0/18
+  region: us-east1
+  zone: us-east1-b   # ISX64: chosen by schedulable/total ratio (91%), not absolute pool size
+  rdma_net_range: 192.168.64.0/18
   instance_image:
     # Rocky 8: slurm-gcp-6-12-hpc-rocky-linux-8
     # Rocky 9: slurm-gcp-6-12-hpc-rocky-linux-9
     family: slurm-gcp-6-12-hpc-rocky-linux-9
     project: schedmd-slurm-public
-  h4d_cluster_size: 4   # ISX64: start at 4 to prove cross-node one-sided RMA, then scale
+  h4d_cluster_size: 2   # ISX64: bound by CPUS_PER_VM_FAMILY=500 (H4D), not CPUS=3000. 500/192 = 2 nodes
 
   #Provisioning model, select one, lack of selection will rely on on-demand capacity
   h4d_reservation_name: ""
-  h4d_dws_flex_enabled: true   # ISX64: Spot was stocked out in us-central1-b; DWS is separate inventory
+  h4d_dws_flex_enabled: false  # ISX64: DWS Flex reported exhausted in us-east1-b while on-demand granted in the SAME zone. Separate inventory.
   h4d_enable_spot_vm: false
 
 # Documentation for each of the modules used below can be found at

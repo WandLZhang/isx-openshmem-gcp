@@ -114,7 +114,7 @@ capacity, not on code.
 ## Reproducing
 
 ```bash
-# on the cluster, after infra/h4d/02_build_sos.sh
+# on the cluster, after infra/h4d/01_build_sos.sh
 export PATH=$HOME/isx/bin:$PATH LD_LIBRARY_PATH=$HOME/isx/lib:$LD_LIBRARY_PATH
 export SHMEM_OFI_PROVIDER="verbs;ofi_rxm" SHMEM_SYMMETRIC_SIZE=512M
 srun -N2 --ntasks-per-node=32 --mpi=pmi2 --export=ALL ./isx64bin 4194304 2 out.csv

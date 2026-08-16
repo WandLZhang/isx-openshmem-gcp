@@ -6,7 +6,12 @@
 # did, as opposed to what the application thinks it asked for.
 #
 # The counters that matter:
-#   ip4OutOctets / ip4InOctets   bytes actually on the wire
+#   ip4OutOctets / ip4InOctets   DO NOT MOVE for RoCE on this NIC. Measured 2026-08-15:
+#                                8.59 GiB of RDMA writes produced no change in any byte
+#                                counter, because the writes are hardware-offloaded and
+#                                bypass these. See results/D3_telemetry.md. The RDMA
+#                                operation counts below are valid; derive bandwidth from
+#                                payload over wall time instead of from these two.
 #   InRdmaWrites                 one-sided writes landing on this node, which is the
 #                                mechanism the whole study is about
 #   cnpSent / cnpHandled         congestion notification points. Non-zero means the

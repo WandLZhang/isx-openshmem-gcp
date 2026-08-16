@@ -79,7 +79,7 @@ key bytes/PE    = 39.1 GB
 at 1.15x        = 45 GB/PE  x 32 PEs    = 1,440 GB/node   (fits 1,488)
 ```
 
-Blueprint (`infra/h4d/isx-slurm-h4d-e1.yaml`):
+Blueprint (`infra/h4d/isx-slurm-h4d.yaml`):
 
 ```yaml
 h4d_cluster_size: 800        # was 2

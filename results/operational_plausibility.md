@@ -95,7 +95,7 @@ An operator has to carry several things the vendor documentation does not mentio
 - **libfabric must be built from source.** The HPC VM image ships libfabric 1.22.0 from
   the parallelstore repo, and no matching `libfabric-devel` exists in any enabled repo.
   The only one offered is 1.18.0 from powertools, and installing it conflicts with the
-  1.22.0 already present. Documented inline in `02_build_sos.sh`.
+  1.22.0 already present. Documented inline in `01_build_sos.sh`.
 - **SOS needs two non-default configure flags** on this fabric,
   `--enable-ofi-mr=basic` and `--enable-hard-polling`, because the provider rejects
   scalable MR and does not support `FI_RMA_EVENT`.

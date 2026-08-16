@@ -1,4 +1,10 @@
-# The 30% completion rate: evidence and hypotheses
+# SUPERSEDED: the 30% completion rate, evidence and hypotheses
+
+**H1 and H3 below are both wrong.** The cause was found on 2026-08-15 and is connection
+establishment in `ofi_rxm`. See `ROOTCAUSE_connection_establishment.md`. Kept as the
+record of what was ruled out and how.
+
+## Original document
 
 Working document for the instability that now blocks scale. Written after the memory
 ceiling was solved (`BREAKTHROUGH_windowed_exchange_20260815.md`), which promoted this
