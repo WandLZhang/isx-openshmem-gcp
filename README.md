@@ -245,6 +245,25 @@ in scope. That removes the last reason to prefer the CPU stack.
 Three fabric requirements the CPU path fails are answered by moving the workload inside a
 coherent domain, because they describe problems that only exist on a network.
 
+### The configuration that fits
+
+An endpoint is one GPU. Per-node memory and endpoint count therefore resolve together:
+
+| machine | HBM/node | host RAM | total/node | nodes for 2 PB | endpoints there |
+|---|---:|---:|---:|---:|---:|
+| `h4d-highmem-192` | — | 1,488 GB | 1,488 GB | 1,344 | 43,008 PEs |
+| `a4x-highgpu-4g` (GB200) | 744 GB | 884 GB | 1,628 GB | 1,229 | 4,916 GPUs |
+| **`a4x-maxgpu-4g-metal` (GB300)** | **1,116 GB** | 960 GB | **2,076 GB** | **963** | **3,852 GPUs** |
+
+Rounding the GB300 row up to hit the endpoint target exactly:
+
+**1,024 nodes of `a4x-maxgpu-4g-metal` gives 4,096 GPU endpoints and 2.13 PB**, against the
+2.02 PB the sort needs. Both requirements are met by one number, with margin.
+
+GB300 is the only option where that is true. H4D reaches the endpoint count easily, because
+processes are cheap, and misses the memory by needing a third more nodes. GB200 sits
+between the two.
+
 ### The recommendation
 
 **Sort inside NVLink domains and treat the cross-rack network as the thing to avoid.**
