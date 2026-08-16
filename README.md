@@ -189,6 +189,77 @@ apply to JAX with `jax_enable_x64`.
 python3 probes/tpu_int64.py --n 4194304
 ```
 
+## Next steps
+
+H4D was chosen from what was available. Starting instead from what the workload needs
+changes the recommendation.
+
+### What the workload requires
+
+Strip the benchmark framing and three requirements remain.
+
+**2 PB of simultaneously addressable memory.** Every key is resident and nothing streams
+to disk. A bucket sort needs the input, a destination-ordered copy and a receive buffer,
+which careful implementation brings to about 2x the dataset. This port measures 2.02x.
+
+**A global address space with one-sided access.** Each process writes into a peer's memory
+without the peer participating.
+
+**Bisection bandwidth.** The shuffle moves essentially the whole dataset across the fabric
+once.
+
+### What that implies
+
+Memory sets the machine count, and it is not close. At 1.5 TB per node, 2 PB needs 1,340
+nodes; at 4 TB, 500. The lower bound is hundreds of machines whatever the family.
+
+Bandwidth sets the run time. At the 4.44 GB/s per node measured here, a thousand nodes
+finish the shuffle in about four minutes.
+
+**The run is minutes, not hours.** That decides three things. Checkpointing is not worth
+building, because writing 1 PB takes longer than sorting it. Retry is the correct failure
+strategy. And the bill is dominated by how long machines are held rather than by the sort.
+
+### Where the argument turns
+
+One-sided RMA has to be implemented by something, and the options are not equivalent.
+
+Inside an NVL72 rack, 72 GPUs share a hardware-coherent address space. A remote write is a
+memory operation. NVSHMEM implements OpenSHMEM semantics directly on it, and no part of
+the libfabric or verbs stack is involved.
+
+Over a network it is OpenSHMEM on libfabric on verbs on RoCE. Four layers, each with its
+own failure modes. **Every defect in this repository's failure analysis is in that stack**,
+and none of them can arise in a coherent domain, because there is no connection to
+establish.
+
+The requirements name `nvshmem_put64_nblock` alongside `shmem_put64`, so the GPU path is
+in scope. That removes the last reason to prefer the CPU stack.
+
+| requirement | CPU + RoCE | GPU + NVSHMEM |
+|---|---|---|
+| One-sided put, get, atomics | yes, through four layers | yes, natively |
+| Connectionless | no, and the connectionless provider is unusable | inside a rack there are no connections |
+| Per-packet adaptive routing | no, the transport uses subflows | inside a rack, no routing |
+
+Three fabric requirements the CPU path fails are answered by moving the workload inside a
+coherent domain, because they describe problems that only exist on a network.
+
+### The recommendation
+
+**Sort inside NVLink domains and treat the cross-rack network as the thing to avoid.**
+
+Scaling past one rack reintroduces the network, so the design question is how much of the
+shuffle stays inside racks. For a bucket sort with deterministic destinations this is
+answerable: **make the bucket assignment rack-aware.** Choose key ranges so most keys land
+in the rack that generated them, and only the residue crosses the network. This is a
+change to the routing prefix, one function, and it converts a flat all-to-all into a
+hierarchical one. It is also the topology-aware programming Deliverable 4 asks about.
+
+What stays hard is obtaining hundreds of accelerator nodes in one zone. No engineering
+removes that, it is the same constraint for any family, and it should be the first
+conversation rather than the last.
+
 ## Detail behind the results
 
 | topic | file |
@@ -198,7 +269,6 @@ python3 probes/tpu_int64.py --n 4194304
 | Operational readiness, six tests | `results/operational_plausibility.md` |
 | Telemetry available on H4D | `results/D3_telemetry.md` |
 | Scaling to a petabyte | `SCALE_OUT.md` |
-| What the right machine family is, derived rather than assumed | `docs/first_principles.md` |
 | Requirements, verbatim, with status | `GOAL.md` |
 
 Upstream issues: [ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673),
