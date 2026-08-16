@@ -35,8 +35,9 @@ first failure is 1/0.62, which is **1.6 runs**. Unattended operation therefore f
 inside the first two attempts on average, and a retry wrapper would need roughly three
 attempts to reach 95% confidence of one success.
 
-For a petabyte run this is worse than it looks. ISx has no checkpoint, so a failure
-discards the whole sort rather than a stage of it.
+A failure discards the whole sort, since ISx has no intermediate state to resume from.
+At this run length that is tolerable and argues for retry rather than checkpointing; see
+the arithmetic at the end.
 
 ## D. Failure mode: measuring
 
@@ -68,9 +69,9 @@ one of its N nodes to avoid a maintenance event for the whole run. At the target
 800 nodes that is 800 independent opportunities to lose the job, and the run has to
 complete inside the gap between maintenance events on the unluckiest node in the fleet.
 
-This is independent of the transport instability and would remain after it is fixed.
-Any production use at this scale needs application-level checkpointing, which upstream
-ISx does not have and which this port did not add.
+This is independent of the transport instability and would remain after it is fixed. The
+remedy is not checkpointing, for the reason given at the end of this document: the
+checkpoint would cost more than the run. It is retry, plus keeping the run short.
 
 ## F. Stack maintainability: marginal
 
@@ -98,9 +99,9 @@ but not by a reader of the vendor documentation.
 **Not production-plausible as it stands**, for two independent reasons.
 
 The transport instability at 35-45% is the immediate one, and it is being pursued
-upstream. The maintenance exposure is the structural one: `TERMINATE` with no
-live migration, no checkpoint in the application, and a failure surface that grows with
-node count. Fixing the first does not fix the second.
+upstream. The maintenance exposure is the structural one: `TERMINATE` with no live
+migration, and a failure surface that grows with node count. Fixing the first does not
+fix the second, though the second is survivable with retry in a way the first is not.
 
 The provisioning recipe itself is sound and reproduces from cold, so Deliverable 2 stands
 regardless of this verdict.
