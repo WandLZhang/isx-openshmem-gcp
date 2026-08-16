@@ -22,7 +22,7 @@ offered as the throughput comparison the study asked for.
 
 The study names NVSHMEM on H200 over Quantum-2 InfiniBand. That configuration does not
 exist on Google Cloud, for two independent reasons: there is no InfiniBand, only RoCE over
-Titanium, and H200 supply is effectively zero (very few chips in the best zone on
+Titanium, and H200 supply is effectively zero (single-digit to low-hundreds of chips in the best zone on
 2026-07-07). The requirement as written is unbuildable here at any budget.
 
 Selecting on what the fabric must do rather than on the named hardware:
@@ -40,11 +40,11 @@ The honest framing is **h4d is the compliance path and a4x is the scale path**.
 ### Measuring capacity
 
 Three separate times, a capacity dashboard disagreed with a real request. The most
-instructive: h4d-highmem in us-central1-b showed substantially free, and four VMs could not
+instructive: internal capacity reporting showed us-central1-b well under-subscribed, and four VMs could not
 be obtained. On-demand in us-east1-b granted immediately while DWS Flex in that **same
 zone** reported exhausted, because they are separate inventory.
 
-What did predict obtainability was the **ratio of schedulable to total hosts**.
+What did predict obtainability was the **ratio of schedulable to total hosts** rather than the absolute pool size.
 Zones above 90% granted; zones at 46-55% did not. Absolute pool size predicted nothing,
 and picking us-central1-b on absolute size cost roughly two hours.
 
@@ -132,7 +132,7 @@ Aggregate, not per PE: one PE with 32 GB works, eight PEs with 4 GB each works, 
 at `shmem_init()`. Huge pages do not lift it.
 
 Consequence: about 26.7 GB of sortable keys per node, so 1 PB needs roughly **37,500
-nodes**, against far beyond any single-zone H4D pool.
+nodes**, which is far beyond any single-zone H4D pool.
 
 ### Interaction between the two walls
 

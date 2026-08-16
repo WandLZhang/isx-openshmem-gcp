@@ -20,7 +20,7 @@ needs a decision or a conversation. **External** = needs someone outside the tea
 
 Arithmetic: 4,096 endpoints ÷ 32 PEs/node (the measured wall) = **128 nodes** = 24,576
 vCPU. Cloud RDMA cannot cross zones, so it must be one zone. Largest H4D pool observed
-anywhere is comfortably above this, so 128 is physically plausible.
+anywhere is comfortably above 128, so this is physically plausible.
 
 **Note the dependency:** if the 32 PEs/node wall is lifted (Goal 3), the node count needed
 drops sharply. At 192 PEs/node it would be 22 nodes and the quota ask nearly disappears.
@@ -162,7 +162,7 @@ nodes).
 |---|---|
 | **Willis's coworker** | H4D is compliance-viable and livelocked past 32 PEs/node. Recommend Phase 2 on a4x/GB200. |
 | **The customer** | The scale precedent. Phase 2 as written has no precedent anywhere; propose renegotiating the target or making "first run at this scale" the deliverable. |
-| **Capacity escalation** (`the internal capacity escalation path`) | H4D 24,576 vCPU **and** an a4x reservation |
+| **Capacity escalation** | H4D 24,576 vCPU **and** an a4x reservation |
 | **DWS owners** (`raquibur@`, `kelvinp@`) | a4x in us-east4-a; a4x is absent from the DWS dashboard |
 | **H4D / Cloud RDMA PM** | Three product gaps: no `libfabric-devel` matching the shipped 1.22.0; docs require libfabric 2.2.0 that no repo provides; `verbs;ofi_rxm` advertises `FI_DELIVERY_COMPLETE` it does not implement. Plus the livelock. |
 | **libfabric / SOS upstream** | Reproducer. Both prior issues here (#5601, #6720) were closed stale. |

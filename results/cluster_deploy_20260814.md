@@ -22,7 +22,7 @@ nothing to fix in the blueprint.
 
 ## The capacity lesson, for the third time
 
-Internal capacity reporting showed h4d-highmem in us-central1-b at substantially free
+Internal capacity reporting showed h4d-highmem in us-central1-b as substantially free
 capacity. Read naively that is 1,280 free VMs. Four could not be obtained.
 
 The same pattern has now appeared three times in this work:
@@ -31,7 +31,7 @@ The same pattern has now appeared three times in this work:
 |---|---|
 | v6e Spot us-west1-c: 0 used of 15,548 | zone has no flex pool at all, code 3 |
 | h4d Spot us-central1-b | `stockout` on a single VM |
-| h4d DWS us-central1-b: reported free | `ZONE_RESOURCE_POOL_EXHAUSTED` on 4 VMs |
+| h4d DWS us-central1-b, reported free | `ZONE_RESOURCE_POOL_EXHAUSTED` on 4 VMs |
 
 A capacity dashboard reports pool size. It does not report obtainability, and the two are
 not close. The only reliable test is a real request.

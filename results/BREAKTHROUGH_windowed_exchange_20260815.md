@@ -55,7 +55,7 @@ With the heap out of the way, the limit is node RAM and the algorithm's footprin
 | **1.02x** with in-place MSD radix and streamed send | **1,435 GB** | **697** | **fits** |
 
 For comparison, before this change: 870 nodes x 26.7 GB = 23.2 TB, and 1 PB needed about
-37,500 nodes far beyond the available H4D fleet.
+37,500 nodes, far beyond the available H4D fleet.
 
 Two further reductions get from 2.60x to 1.02x, and neither is exotic:
 

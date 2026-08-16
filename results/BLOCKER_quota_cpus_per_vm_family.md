@@ -67,7 +67,7 @@ support or the internal capacity escalation path, not a console click.
 
 Reaching the endpoint requirement needs a **49x** increase in `CPUS_PER_VM_FAMILY` for
 H4D, in a single region, and the nodes must all land in one zone because Cloud RDMA cannot
-cross zones. Single-zone H4D pools are large enough for this, so
+cross zones. Single-zone H4D pools are large enough for this to be plausible, so
 128 nodes is physically plausible where 37,500 is not.
 
 ## Ordering of the blockers

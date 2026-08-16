@@ -70,7 +70,7 @@ keys per node             = 32 GB / (1.2 x 8 B)  =~ 3.33e9 keys  (26.7 GB of key
 nodes required            = 1.25e14 / 3.33e9     =~ 37,500 nodes
 ```
 
-Against a far beyond any single-zone H4D pool. Cloud
+That is far beyond any single-zone H4D pool. Cloud
 RDMA cannot span zones, so the relevant comparison is the zone: short by roughly **43x**.
 
 The endpoint target lands in a different place. From

@@ -119,7 +119,7 @@ until it is measured at real node counts.
 | **1 PB and 25,600 endpoints** | **800** | **153,600** |
 
 Self-service is capped at 500 in every region, so both need an approved escalation via
-`the internal capacity escalation path`. Quota grants permission. It does not reserve machines. Confirm the
+an internal capacity escalation. Quota grants permission. It does not reserve machines. Confirm the
 zone holds the machines as a separate step. us-central1-a and us-central1-b were both
 exhausted at a time when quota was sufficient.
 
