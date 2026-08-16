@@ -109,7 +109,25 @@ regardless of this verdict.
 
 1. Upstream resolution of the connection establishment failure, or a transport that
    avoids it.
-2. Application-level checkpointing in ISx64, so a maintenance event costs one stage
-   rather than the whole run. This is the only item here with no external dependency, and
-   it is a real piece of work rather than a configuration change.
-3. A retry wrapper in the Slurm submission, which is cheap and worth having regardless.
+2. **A retry wrapper in the Slurm submission.** Cheap, and it is the correct answer to the
+   maintenance exposure rather than a consolation prize. See the arithmetic below.
+3. A pre-flight fabric check in the prolog, so a run that is going to fail on connection
+   setup fails in seconds rather than after the retry budget.
+
+### Why not checkpointing
+
+An earlier version of this document proposed application-level checkpointing as the fix
+for section E. The arithmetic does not support it.
+
+At the measured 4.44 GB/s per node, 1 PB across 800 nodes is 1.25 TB per node to move,
+which is about 5 minutes of exchange and 10 to 15 minutes end to end. Checkpointing 1 PB
+of in-memory state needs 1 PB of storage and, at a generous 1 TB/s aggregate write, about
+17 minutes.
+
+**The checkpoint costs more than the run it protects**, and it would also change what ISx
+measures, since the benchmark reports time to solution for one uninterrupted sort.
+
+The right response to a maintenance event on a 15-minute run is to rerun it. Exposure is
+proportional to node count times run duration, and the run duration here is short enough
+that retry dominates. That reasoning would invert for a workload running for hours, which
+this one is not.
