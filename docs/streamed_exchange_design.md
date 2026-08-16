@@ -87,10 +87,13 @@ session. `FI_VERBS_GID_IDX=1` and `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` both improved th
 standalone reproducer and left ISx64 unchanged. This changes ISx64 at the size where it
 was failing.
 
-Five runs per cell is a small sample, and repeating it showed why that matters. Twenty
-runs of `isx64_stream` at 64 PEs per node gave **7/20**, not 4/5. The paragraph above,
-written from the five-run result, overstates the effect. The windowed twenty-run figure
-was still running when this was written.
+Five runs per cell is a small sample, and repeating it reversed the result. Twenty runs
+per build at 64 PEs per node give `isx64_stream` 7/20 and `isx64_win` 9/20. The five-run
+figures (4/5 against 1/5) were noise in both directions. There is no stability difference
+between the two schedules, and the paragraphs above claiming one are wrong.
+
+What holds is the window reduction, which is structural rather than measured, and the 18%
+throughput cost.
 
 ## Status
 
