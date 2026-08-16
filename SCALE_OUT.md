@@ -100,11 +100,14 @@ srun -N800 --ntasks-per-node=32 --mpi=pmi2 --export=ALL \
      ./isx64stream 4880000000 1 results/pb_run
 ```
 
-Use `isx64stream`, not `isx64win`. At 64 PEs per node the streamed build validated 4/5
-against the windowed build's 1/5, for 18% less throughput. It also holds the symmetric
-window at `WINDOW * 8` bytes per PE instead of `NUM_PES * WINDOW * 8`, which removes step
-3 above. Both results come from five runs on two nodes, so confirm them at real node
-counts before committing to a petabyte run.
+`isx64stream` holds the symmetric window at `WINDOW * 8` bytes per PE instead of
+`NUM_PES * WINDOW * 8`, which removes step 3 above. That part is structural and holds.
+
+Its stability advantage does not. A five-run sample gave 4/5 against the windowed build's
+1/5 at 64 PEs per node. Repeating at twenty runs gave **7/20**, so the 4/5 was a lucky
+draw. The windowed build's twenty-run figure was still measuring when this was written;
+check `results/` for it before choosing. Treat any completion rate here as provisional
+until it is measured at real node counts.
 
 ## Step 5 — quota
 
