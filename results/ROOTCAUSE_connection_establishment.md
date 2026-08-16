@@ -258,7 +258,7 @@ mechanism before it was measured, which is a reasonable check on the diagnosis.
 So both settings that help the reproducer do nothing for the benchmark. Matching the
 operation count was not sufficient to make the reproducer model ISx64. What still differs:
 ISx64 issues a `shmem_atomic_fetch_add` per destination, its puts are variable-sized
-rather than a fixed 256 KB, and it interleaves key generation and a radix sort between
+where the reproducer sends a fixed 256 KB, and it interleaves key generation and a radix sort between
 exchanges. One of those, not raw operation count, is what pins the benchmark.
 
 Note also the run-to-run spread at n=5: the same 32 PEs/node baseline measured 2/5 in one

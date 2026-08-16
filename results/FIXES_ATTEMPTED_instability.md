@@ -17,7 +17,7 @@ Baseline to beat: **2 of 7 completed at 32 PEs/node**, and **0 of 3 at 64 PEs/no
 | 4 | OSSS-UCX over UCX 1.18 (replaces libfabric entirely) | **0/10** | 0/3 | segfaults in `shmem_init` |
 
 Four failed fixes. The debugging discipline says three or more means the architecture is
-wrong rather than the parameter. Stopping here instead of attempting a fifth guess.
+wrong at the architecture level. Stopping here instead of attempting a fifth guess.
 
 ## 3. FI_TRANSMIT_COMPLETE
 
@@ -68,21 +68,21 @@ optional dependencies are how you end up benchmarking the wrong thing.
 
 With RDMA transports present and `UCX_TLS=rc_verbs,self,sm`, `UCX_NET_DEVICES=irdma0:1`,
 OSSS-UCX still segfaults in both PEs. Not diagnosed. Most likely a PMIx or UCX version
-mismatch rather than anything about H4D, since it fails at init before touching the
+mismatch, since it fails at init before touching the
 fabric.
 
 ## Established facts
 
 From `HYPOTHESES_instability.md` plus the above:
 
-- It is a **livelock**, not a deadlock. PEs sit at 98.4% CPU, state `R`, spinning in
+- It is a **livelock**. PEs sit at 98.4% CPU, state `R`, which is running rather than blocked, spinning in
   `try_again`.
 - The fabric is clean on completing runs: zero congestion notices, zero protocol errors,
   zero CRC errors, and both NICs pass Google's `irdma_health_check`.
 - Bounce buffering is enabled (`mode = 0x0`, no `FI_CONTEXT`), so the EAGAIN path does
   drain the CQ. That theory is dead.
 - The wall tracks **PEs per node**, not total PEs, which points at a per-NIC or per-node
-  resource rather than anything global.
+  resource.
 - The completion semantic, shared transmit contexts and SOS's progress strategy are all
   excluded.
 
@@ -137,7 +137,7 @@ It is not a fix, and should not be reported as one:
   fails two runs in three.
 - **THROTTLE=4 returns to 0/3**, so there is no smooth knee to tune toward. A parameter
   that only works at its most extreme setting, and then only sometimes, is a symptom being
-  suppressed rather than a cause being removed.
+  suppressed. No cause was removed.
 
 The honest reading is that in-flight operation count is *a* contributing factor and not
 the whole story. Something else is also wrong, most likely in the provider, which is

@@ -78,7 +78,7 @@ isxh4de1-h4dnodeset-1 exit=0   Loopback test PASSED. RDMA health checks passed.
 The `irdma0` port error counters are all zero on both nodes.
 
 That weakens candidate 3 considerably: these are not visibly degraded machines. It does
-not eliminate it, because the health check is a single-pair loopback test rather than a
+not eliminate it, because the health check is a single-pair loopback test and not a
 multi-PE stress test, and the failures only appear under concurrent all-to-all load. But
 the simple explanation is now unlikely, which leaves hard polling as the leading
 candidate.
@@ -104,7 +104,7 @@ and re-tested, 3 attempts per point:
 | 48 | 96 | **0/3** |
 
 32 PEs per node passed intermittently before this change and never passed after it. The
-flag is a regression, not a fix, and the build has been reverted to
+flag is a regression. The build has been reverted to
 `--enable-ofi-mr=basic --enable-hard-polling`.
 
 That leaves the completion-progress hypothesis intact but unexplained: the stall is not

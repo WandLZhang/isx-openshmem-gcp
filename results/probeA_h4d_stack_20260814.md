@@ -45,7 +45,7 @@ providers can be installed
 ```
 
 So libfabric has to be built from source. This is a required platform-specific
-modification, not a preference.
+modification. The build fails without it.
 
 **3. The documented libfabric minimum is unmeetable from packages.**
 

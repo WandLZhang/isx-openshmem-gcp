@@ -96,7 +96,7 @@ limits, the largest configuration that satisfies the endpoint requirement sorts 
 2. **On-demand paging.** If `irdma` supports ODP, registration need not pin up front and
    the per-node budget may not apply.
 3. **1 GB huge pages** rather than 2 MB, reducing page count another 512x. The 2 MB test
-   hit `oom_kill` rather than a registration stall, so the mechanism may differ.
+   hit `oom_kill` where the others stalled during registration, so the mechanism may differ.
 4. **Re-run the 4 x 8 GB anomaly** to confirm the boundary is 32 GB and not lower.
 
 Option 1 is the honest recommendation. It changes what is being benchmarked, so it is the

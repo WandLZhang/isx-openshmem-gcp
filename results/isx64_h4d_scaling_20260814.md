@@ -14,7 +14,7 @@ PE  1/2 on isxh4de1-h4dnodeset-1   got 1000 want 1000  OK
 ```
 
 Verified at 2, 4, 6, 8, 12 and 16 PEs across two nodes. `ldd libsma.so` shows no
-`libmpi`; the launcher is `srun --mpi=pmi2`, which is Slurm's PMI, not an MPI runtime.
+`libmpi`. The launcher is `srun --mpi=pmi2`, which invokes Slurm's PMI. No MPI runtime is involved.
 
 The build required two non-default flags, both forced by the fabric. See
 `BLOCKER_h4d_rma_atomic_20260814.md`:
@@ -89,7 +89,7 @@ None of it moves the wall. The cause lies deeper than STX allocation.
 The exchange roughly doubles per PE doubling while the local sort stays flat, which is
 what weak scaling should do: keys per PE is constant, so radix work per PE is constant,
 while the exchange grows with the number of destinations. By 64 PEs the benchmark is
-measuring the fabric rather than the CPU, which is the regime ISx is designed for. That
+measuring the fabric, which is the regime ISx is designed for. That
 it only reaches that regime just as the retry wall arrives is the central problem.
 
 **4. Jitter at low PE counts.** 8 PEs passed standalone and failed inside the sweep.

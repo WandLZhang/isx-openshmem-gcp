@@ -58,7 +58,7 @@ and both NICs still reported one active port.
 Two consequences for the wrapper in `infra/h4d/run_isx64.sh`:
 
 - A timeout above 244 s is pointless, since the application aborts itself first. The
-  wrapper's 300 s is therefore a backstop rather than the mechanism.
+  wrapper's 300 s therefore acts as a backstop. The application's own abort does the work.
 - **237 seconds per failed attempt is the real operational cost.** At a 60-75% failure
   rate, five attempts average about 15 minutes of allocation burned before a success.
   This is what makes the pre-flight check worth having: it fails in seconds instead.
@@ -126,7 +126,7 @@ regardless of this verdict.
 1. Upstream resolution of the connection establishment failure, or a transport that
    avoids it.
 2. **A retry wrapper in the Slurm submission.** Cheap, and it is the correct answer to the
-   maintenance exposure rather than a consolation prize. See the arithmetic below.
+   maintenance exposure. See the arithmetic below.
 3. A pre-flight fabric check in the prolog, so a run that is going to fail on connection
    setup fails in seconds rather than after the retry budget.
 

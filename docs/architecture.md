@@ -44,7 +44,7 @@ instructive: internal capacity reporting showed us-central1-b well under-subscri
 be obtained. On-demand in us-east1-b granted immediately while DWS Flex in that **same
 zone** reported exhausted, because they are separate inventory.
 
-What did predict obtainability was the **ratio of schedulable to total hosts** rather than the absolute pool size.
+What predicted obtainability was the **ratio of schedulable to total hosts**. Absolute pool size did not.
 Zones above 90% granted; zones at 46-55% did not. Absolute pool size predicted nothing,
 and picking us-central1-b on absolute size cost roughly two hours.
 
@@ -156,7 +156,7 @@ paradigms**, and it is measurable rather than rhetorical.
 The first implementation verifies correct at 16.7M keys on 4 chips but reports only
 0.20 GB/s end to end, against 175 GB/s for the exchange alone on the same hardware. The
 network is under 1% of the time; the padded path costs two full sorts per iteration. That
-number is an untuned local phase, not a fabric measurement, and `results/` says so.
+number measures an untuned local phase. `results/` says so.
 
 TPU is ultimately bounded by capacity, not arithmetic: 192 GiB per chip and a maximum slice
 of 9,216 chips gives 1.9 PB of HBM, and ISx needs about 2.5x the key array resident.

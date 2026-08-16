@@ -55,7 +55,7 @@ gcloud alpha services quota update ... --value=24576 --force
 ```
 
 The consumer override is itself capped at 500, so this needs a quota increase through
-support or the internal capacity escalation path, not a console click.
+support or the internal capacity escalation path. A console click will not do it.
 
 ## Requirement for the target
 

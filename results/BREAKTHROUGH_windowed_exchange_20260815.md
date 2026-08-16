@@ -21,7 +21,7 @@ so the dataset is bounded by node RAM instead.
 
 The transfer stays one-sided. Each chunk is a `shmem_uint64_put` directly into a peer's
 symmetric memory and its length is a `shmem_longlong_p` into the same peer. The receiver
-participates in neither. What changed is chunking and flow control, not the memory model.
+participates in neither. Chunking and flow control changed. The memory model did not.
 
 ## The measurement
 

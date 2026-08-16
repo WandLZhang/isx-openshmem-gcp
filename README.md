@@ -11,7 +11,7 @@ rather than compute. The target for this study is more than 1 PB of `uint64` key
 
 The study asked whether Google Cloud can run an OpenSHMEM PGAS workload that sorts more
 than 1 PB across 4,096 or more endpoints. On H4D, it cannot today. Four requirements are
-met, four are not, and the reasons differ.
+met and four are not.
 
 | requirement | result | why |
 |---|---|---|
@@ -37,17 +37,17 @@ connectionless provider that would avoid the problem entirely, `verbs;ofi_rxd`, 
 complete OpenSHMEM startup on this hardware. Both are filed upstream with reproducers, one
 of which uses libfabric's own test binary.
 
-**Scale is a capacity limit, not a technical one.** H4D quota is fixed at 500 vCPU per
+**Capacity is what limits Scale.** H4D quota is fixed at 500 vCPU per
 region and every self-service increase is refused. All three H4D machine shapes are 192
 vCPU, so a project is capped at two nodes. Reaching 4,096 endpoints needs 128 nodes;
 1 PB needs about 800.
 
-**Adaptive routing is an architecture mismatch rather than a gap.** The requirement
+**The adaptive routing requirement and the fabric disagree on approach.** The requirement
 describes Ultra Ethernet behaviour. Google's Falcon transport deliberately chose multipath
 subflows over per-packet spraying, because per-packet routing reorders packets and RoCE
 treats reordering as loss. Falcon's published results claim up to 8x lower completion
-times than the alternative. If the underlying goal is to use all available paths and react
-to congestion, the fabric does that. If the requirement is literal, it does not.
+times than the alternative. The fabric uses all available paths and reacts to congestion. It does not do so per
+packet.
 
 **Operational readiness has a second, independent problem.** H4D cannot live-migrate, so
 a host maintenance event ends a run. This is unaffected by any of the above and would
@@ -60,7 +60,7 @@ interrupted. Retrying is the right answer at this run length, and
 | action | depends on |
 |---|---|
 | Approve H4D quota of 24,576 vCPU in one region, 128 nodes | capacity approval |
-| Confirm the zone holds the machines. Quota is permission, not reservation | capacity team |
+| Confirm the zone holds the machines. Quota grants permission and reserves nothing | capacity team |
 | Resolve the connection establishment defect | libfabric and Sandia OpenSHMEM maintainers |
 | Decide whether subflow multipath satisfies the adaptive routing requirement | customer |
 | Reconsider the scale target. No published ISx run exceeds about 96 endpoints or 26 GB, and this study already passed both | customer |

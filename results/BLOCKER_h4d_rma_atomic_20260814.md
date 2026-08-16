@@ -86,7 +86,7 @@ Two lessons, both of which cost time here:
 
 1. **Every negative capability result needs a positive control.** Run the same query
    shape against something known to work before believing a NO.
-2. **`fi_info` is a discovery tool, not a conformance test.** To find out whether a
+2. **`fi_info` discovers providers. It does not test conformance.** To find out whether a
    specific application's hints are satisfiable, replicate those hints in a few lines of C
    calling `fi_getinfo` directly and bisect the attributes. This isolated
    `FI_RMA_EVENT`, and it took less time than the guessing did.

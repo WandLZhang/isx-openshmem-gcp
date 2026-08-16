@@ -19,7 +19,7 @@ from second-order to the main blocker.
 | Wall tracks **PEs per node**, not total PEs | scaling sweep | a global/topological cause |
 
 Two fixes have been tried and failed. Per the debugging discipline, a third failed fix
-means the architecture is the problem rather than the parameter.
+means the architecture is the problem.
 
 ## Upstream findings
 
