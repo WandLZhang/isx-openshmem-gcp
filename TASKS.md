@@ -100,6 +100,7 @@ round and scales as connections-per-node; failing runs die inside round 0.
 | Isolate the rxd `av insert failed` — if SOS's PMI address exchange assumes a fixed address size, `FI_ADDR_IB_UD` may need a small patch | me | none, this is the highest-value item left |
 | File the livelock upstream with the reproducer | me, **needs Willis's ok to post publicly** | outward-facing |
 | ~~Re-measure manual progress~~ | done | 0/7 at 32 PEs/node, a hard regression |
+| Read out Slurm job 99 | whoever picks this up | n=20 per arm on `FI_VERBS_GID_IDX` and `FI_OFI_RXM_CQ_EQ_FAIRNESS`. Every prior A/B on these used n=5 and is uninformative. `ssh isx-ctl 'cat ~/envab.out'` |
 | ~~Close the reproducer/ISx64 gap~~ | done | it is operation count: 512 puts 3/5, 4,096 puts 2/5, 16,384 puts 1/5. Heap size is irrelevant |
 | ~~Why the hazard grows with operation count~~ | done | CM progress is starved by data CQ traffic. `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` gives 3/5 against 1/5 at ISx64's operation count |
 | Verify `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` on the real ISx64, and combined with the GID setting and the warmup | me | none, top item |

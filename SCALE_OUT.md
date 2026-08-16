@@ -90,8 +90,10 @@ Launch:
 
 ```bash
 export SHMEM_OFI_PROVIDER="verbs;ofi_rxm"
-# Both settings improve the standalone reproducer. Neither changed ISx64 results on
-# 2 nodes. They cost nothing, so they are kept here. Re-measure at real node counts.
+# Both settings improve the standalone reproducer. Their effect on ISx64 itself is
+# UNVERIFIED: the only A/B was n=5, which this study found cannot separate 20% from 80%.
+# An n=20 arm-by-arm test is running as Slurm job 99; see results/ for the outcome.
+# FI_VERBS_GID_IDX=1 is separately required for verbs;ofi_rxd and costs nothing here.
 export FI_VERBS_GID_IDX=1              # routable GID, see results/ROOTCAUSE_*.md
 export FI_OFI_RXM_CQ_EQ_FAIRNESS=1     # stops data traffic starving CM progress
 export SHMEM_SYMMETRIC_SIZE=2G         # NUM_PES x WINDOW x 8, with WINDOW=4096
