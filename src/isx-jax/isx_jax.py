@@ -49,20 +49,30 @@ MAX_KEY = 1 << 60
 HAS_RAGGED = hasattr(jax.lax, "ragged_all_to_all")
 
 
-def make_keys(n_dev: int, per_dev: int, seed: int) -> jnp.ndarray:
-    """Uniform uint64 keys, deterministic per device.
+def make_keys(mesh: Mesh, n_dev: int, per_dev: int, seed: int) -> jnp.ndarray:
+    """Uniform uint64 keys, generated independently on each device.
 
-    Deterministic on purpose: the study requires consistent results across runs with the
-    same configuration, so nothing here is seeded from wall time.
+    ISx phase 1 is "each PE generates a subset of keys using a PRNG". It is local and
+    parallel, and no data crosses the interconnect. An earlier version of this function
+    drew the whole `n_dev * per_dev` array in one call and let `device_put` scatter it,
+    which is a different workload: it makes generation a single-device operation followed
+    by a broadcast, and it caps the dataset at what one chip's HBM can hold. That ceiling
+    is the opposite of what the benchmark exists to measure.
+
+    `fold_in` gives each device an independent stream from one seed, so the result is
+    still deterministic across runs with the same configuration.
     """
-    key = jax.random.PRNGKey(seed)
-    # randint tops out at int64, so draw in int64 and reinterpret. Drawing in two 32-bit
-    # halves the way the C version does is unnecessary here because JAX has a real 64-bit
-    # RNG path once x64 is enabled.
-    raw = jax.random.randint(
-        key, (n_dev * per_dev,), 0, MAX_KEY, dtype=jnp.int64
-    )
-    return raw.astype(jnp.uint64)
+
+    def gen(idx):
+        k = jax.random.fold_in(jax.random.PRNGKey(seed), idx[0])
+        # randint tops out at int64, so draw in int64 and reinterpret. Drawing in two
+        # 32-bit halves the way the C version does is unnecessary here, because JAX has a
+        # real 64-bit RNG path once x64 is enabled.
+        raw = jax.random.randint(k, (per_dev,), 0, MAX_KEY, dtype=jnp.int64)
+        return raw.astype(jnp.uint64)
+
+    idx = jax.device_put(jnp.arange(n_dev), NamedSharding(mesh, P("pe")))
+    return jax.shard_map(gen, mesh=mesh, in_specs=P("pe"), out_specs=P("pe"))(idx)
 
 
 def build_padded(mesh: Mesh, n_dev: int, bucket_width: int, cap: int):
@@ -140,8 +150,8 @@ def main() -> int:
     mesh = Mesh(mesh_utils.create_device_mesh((n_dev,)), ("pe",))
     fn = build_padded(mesh, n_dev, bucket_width, cap)
 
-    keys = make_keys(n_dev, per_dev, seed=0)
-    sharded = jax.device_put(keys, NamedSharding(mesh, P("pe")))
+    # Already sharded by construction; no scatter, and no single-device ceiling.
+    sharded = make_keys(mesh, n_dev, per_dev, seed=0)
 
     times = []
     out = counts = None

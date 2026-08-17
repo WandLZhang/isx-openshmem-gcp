@@ -87,6 +87,10 @@ run, so no part of it needs deriving again once capacity is granted.
 | `src/isx64/isx64_stream.c` | as above, one destination per step | single-slot symmetric window |
 | `src/isx-jax/isx_jax.py` | `jax.lax.all_to_all` on TPU | ICI. A compiler collective, not PGAS |
 
+The TPU key generation is sharded and **untested since that change** — it was written
+against a v5e that is no longer provisioned. Verify `make_keys` before quoting a TPU
+number.
+
 The JAX version is included for comparison against tensor hardware. It is not OpenSHMEM
 and does not satisfy the study's programming-model requirement.
 
