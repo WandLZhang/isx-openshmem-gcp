@@ -7,6 +7,16 @@ ISx is a distributed bucket sort. It measures unstructured all-to-all bisection 
 rather than compute. The target for this study is more than 1 PB of `uint64` keys across
 4,096 or more endpoints, using OpenSHMEM one-sided RMA. MPI is out of scope.
 
+## Status: concluded on H4D
+
+Work on H4D stopped on 2026-08-16. The reason is capacity, not software. A petabyte
+in memory needs roughly 800 to 1,340 H4D nodes in one zone; the largest H4D run ever
+recorded is 192 nodes, and 800 exceeds the unallocated capacity of every zone. Fixing the
+transport defects below would not change that.
+
+Everything here stands as the answer to why, and `Next steps` sets out the configuration
+that does work. The two upstream issues remain open and are worth following.
+
 ## Results
 
 The study asked whether Google Cloud can run an OpenSHMEM PGAS workload that sorts more
