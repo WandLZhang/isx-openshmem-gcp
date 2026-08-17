@@ -67,9 +67,26 @@ Transport: posix / rc_verbs / self / sysv / tcp / ud_verbs
 optional dependencies are how you end up benchmarking the wrong thing.
 
 With RDMA transports present and `UCX_TLS=rc_verbs,self,sm`, `UCX_NET_DEVICES=irdma0:1`,
-OSSS-UCX still segfaults in both PEs. Not diagnosed. Most likely a PMIx or UCX version
-mismatch, since it fails at init before touching the
-fabric.
+OSSS-UCX still segfaults in both PEs, at init, before touching the fabric.
+
+**Diagnosed 2026-08-16, and the guess above was right.** The cause is the standalone
+OpenPMIx 5.0.6 build. Google's qualified H4D recipe builds PMIx internally
+(`--with-pmix=internal`); an external standalone PMIx produces ABI and initialisation
+mismatches at exactly this point. The published H4D MPI setup guide uses UCX 1.20.0
+configured `--with-verbs --with-rdmacm --enable-mt`, and Open MPI 5.0.9 built against it
+with internal PMIx:
+
+    ./configure --prefix=/opt/ucx --with-verbs --with-rdmacm --enable-mt          # UCX
+    ./configure --prefix=/opt/ompi --with-ucx=/opt/ucx --with-pmix=internal       # OMPI
+    UCX_TLS=rc,sm,self  UCX_NET_DEVICES=<rdma_dev>:1
+
+See https://docs.cloud.google.com/cluster-toolkit/docs/setup/configure-mpi-application.
+
+**This is worth retrying.** OSSS-UCX uses no libfabric, so it bypasses `verbs;ofi_rxm`
+entirely, which is where every defect in this document lives. It stays OpenSHMEM and
+one-sided PGAS, so it remains responsive to the study. The caveat is that OSSS-UCX links
+PMIx directly rather than through Open MPI, so the internal-PMIx fix needs adapting
+rather than copying.
 
 ## Established facts
 

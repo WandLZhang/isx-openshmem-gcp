@@ -264,6 +264,21 @@ GB300 is the only option where that is true. H4D reaches the endpoint count easi
 processes are cheap, and misses the memory by needing a third more nodes. GB200 sits
 between the two.
 
+### Two facts that settle the H4D question
+
+**The supported H4D stack is MPI-based.** Google's published setup guide for H4D Cloud
+RDMA covers Intel MPI and Open MPI over UCX. OpenSHMEM is outside it. `verbs;ofi_rxm` is
+a qualified provider, but qualified with Intel MPI rather than with a PGAS runtime, so
+this study exercised a combination nobody tests.
+
+**The `ofi_rxm` connection limit is known.** Connection-count exhaustion on that provider
+is why the platform added PSM3 and UCX as alternatives. The measurement here adds a
+specific threshold and a 60-line reproducer to an already-recognised class of problem
+rather than discovering a new one.
+
+Together these say the H4D path was never going to reach the target, and no amount of
+tuning inside `ofi_rxm` changes that.
+
 ### The recommendation
 
 **Sort inside NVLink domains and treat the cross-rack network as the thing to avoid.**
