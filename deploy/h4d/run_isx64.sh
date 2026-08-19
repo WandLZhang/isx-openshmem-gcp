@@ -26,7 +26,9 @@ OUT=${ISX64_OUT:-$HOME/isx64_results}
 mkdir -p "$OUT"
 
 export PATH="$PREFIX/bin:$PATH" LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
-export SHMEM_OFI_PROVIDER="verbs;ofi_rxm"
+export SHMEM_OFI_PROVIDER=psm3
+export PSM3_ALLOW_ROUTERS=1
+export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "${SLURM_JOB_ID:-1}")
 export SHMEM_SYMMETRIC_SIZE=${SHMEM_SYMMETRIC_SIZE:-8G}
 # GID 0 is link-local on this NIC and has no route. See results/adaptive_routing.md.
 export FI_VERBS_GID_IDX=${FI_VERBS_GID_IDX:-1}

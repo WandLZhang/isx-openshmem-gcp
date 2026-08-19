@@ -1,0 +1,26 @@
+diff --git a/src/transport_ofi.c b/src/transport_ofi.c
+index f8f04d65..225f519d 100644
+--- a/src/transport_ofi.c
++++ b/src/transport_ofi.c
+@@ -600,9 +600,20 @@ int bind_enable_ep_resources(shmem_transport_ctx_t *ctx)
+ {
+     int ret = 0;
+ 
+-    /* If using SOS-managed STXs, bind the STX */
++    /* If using SOS-managed STXs, bind the STX.
++     *
++     * ISX_STX_OPTIONAL: some providers do not implement shared transmit contexts. psm3
++     * is one; fi_ep_bind returns -FI_EINVAL and SOS aborts before any data moves. A
++     * shared STX is an optimisation that lets several contexts share transmit resources,
++     * so a provider that refuses one is still usable with a private transmit context per
++     * endpoint. Warn and continue instead of failing startup. */
+     if (ctx->stx_idx >= 0) {
+         ret = fi_ep_bind(ctx->ep, &shmem_transport_ofi_stx_pool[ctx->stx_idx].stx->fid, 0);
++        if (ret == -FI_EINVAL || ret == -FI_ENOSYS) {
++            RAISE_WARN_STR("provider rejected shared TX context; continuing without it");
++            ctx->stx_idx = -1;
++            ret = 0;
++        }
+         OFI_CHECK_RETURN_STR(ret, "fi_ep_bind STX to endpoint failed");
+     }
+ 

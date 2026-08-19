@@ -111,13 +111,19 @@ cat > "${PREFIX}/env.sh" <<'ENVEOF'
 export PATH=/opt/isx/bin:$PATH
 export LD_LIBRARY_PATH=/opt/isx/lib:$LD_LIBRARY_PATH
 
-# Pin the provider. Unset, libfabric may pick tcp, which works, passes every
-# correctness test, and measures the wrong thing entirely.
-export FI_PROVIDER="verbs;ofi_rxm"
+# PSM3 is the provider Google qualifies for H4D. Measured 20/20 validated runs at
+# 64 PEs/node against 7-9/20 on verbs;ofi_rxm, and round-0 connection cost grows 3.1x
+# rather than 16.8x across the same range. See results/h4d-psm3.md.
+export FI_PROVIDER=psm3
+export SHMEM_OFI_PROVIDER=psm3
 
-# Google's published H4D tuning.
-export FI_VERBS_INLINE_SIZE=39
-export FI_OFI_RXM_BUFFER_SIZE=4096
+# Each H4D RDMA NIC presents as its own /32, which PSM3 reads as an off-subnet peer
+# and refuses to connect to. This disables that check.
+export PSM3_ALLOW_ROUTERS=1
+
+# Every rank in a job must share one UUID. Deriving it from the job id keeps
+# concurrent jobs apart.
+export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "${SLURM_JOB_ID:-1}")
 export FI_OFI_RXM_SAR_LIMIT=2147483648
 
 # Must equal total rank count; RxM sizes its address vector from it. Too small and
