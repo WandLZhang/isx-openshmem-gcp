@@ -15,7 +15,7 @@
 #
 # Run from a login node with the cluster up.
 #
-#   bash probes/probeA_h4d.sh 16 4       # 16 nodes, 4 PEs each
+#   bash tools/probe-h4d-fabric.sh 16 4       # 16 nodes, 4 PEs each
 set -uo pipefail
 
 NODES="${1:-16}"

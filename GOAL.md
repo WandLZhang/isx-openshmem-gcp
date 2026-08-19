@@ -69,7 +69,7 @@ endpoints needs 128 nodes and 1 PB needs roughly 800, neither of which is reacha
 without an approved capacity escalation.
 
 The agreed substitute is a handoff: a plan the HPC team can execute when capacity is
-granted, precise enough that nobody re-derives the arithmetic. That is `SCALE_OUT.md`,
+granted, precise enough that nobody re-derives the arithmetic. That is `docs/scale-out.md`,
 and the escalation itself is drafted. Scale is therefore tracked below as descoped rather
 than as failed, and the demonstration remains outstanding.
 
@@ -81,16 +81,16 @@ Tracked honestly. See `results/` for the underlying measurements.
 |---|---|
 | OpenSHMEM PGAS, no MPI | **met.** SOS 1.5.3 on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
 | RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive |
-| Per-packet adaptive routing | **not met.** Falcon uses multipath subflows by design, not packet spraying; the verbs layer sees plain RoCE v2 with DCQCN and no path-selection interface; zero out-of-order packets measured across all traffic. Two nodes cannot separate "no AR" from "no AR needed". `results/adaptive_routing.md` |
-| Connectionless fabric semantics | **not met.** `verbs;ofi_rxm` uses reliable connections. `verbs;ofi_rxd` is connectionless; two of its three blockers were solved, and its RMA path still reaches the retry limit at 2 PEs. `results/ROOTCAUSE_connection_establishment.md` |
-| >= 4,096 endpoints | **descoped to a plan.** 128 PEs demonstrated. Needs 128 nodes and 24,576 vCPU. `SCALE_OUT.md`, `results/BLOCKER_quota_cpus_per_vm_family.md` |
-| > 1 PB in-memory | **descoped to a plan.** 17 GB largest verified run. The heap ceiling is solved in software; 1 PB needs about 800 nodes after the memory work. `SCALE_OUT.md` |
+| Per-packet adaptive routing | **not met.** Falcon uses multipath subflows by design, not packet spraying; the verbs layer sees plain RoCE v2 with DCQCN and no path-selection interface; zero out-of-order packets measured across all traffic. Two nodes cannot separate "no AR" from "no AR needed". `results/adaptive-routing.md` |
+| Connectionless fabric semantics | **not met.** `verbs;ofi_rxm` uses reliable connections. `verbs;ofi_rxd` is connectionless; two of its three blockers were solved, and its RMA path still reaches the retry limit at 2 PEs. `results/rxm-connection-limit.md` |
+| >= 4,096 endpoints | **descoped to a plan.** 128 PEs demonstrated. Needs 128 nodes and 24,576 vCPU. `docs/scale-out.md`, `results/h4d-capacity.md` |
+| > 1 PB in-memory | **descoped to a plan.** 17 GB largest verified run. The heap ceiling is solved in software; 1 PB needs about 800 nodes after the memory work. `docs/scale-out.md` |
 | Correctness validation | **met when runs complete.** PASSED at 4, 64 and 128 PEs, largest 2,147,483,648 keys. Failures are transport hangs, not wrong answers |
 | Reproducibility | **not met, quantified.** 35-45% at 64 PEs/node over 20 runs per arm. Root cause identified as `ofi_rxm` connection establishment; ten fixes measured, none moved the benchmark |
-| Operational plausibility | **not met.** Two independent reasons. 35-45% unattended completion, mean 1.6 runs to first failure. And `onHostMaintenance: TERMINATE` with no live migration and no checkpoint in ISx, so a maintenance event on any one of N nodes discards the whole run. Fixing the transport does not fix the second. `results/operational_plausibility.md` |
+| Operational plausibility | **not met.** Two independent reasons. 35-45% unattended completion, mean 1.6 runs to first failure. And `onHostMaintenance: TERMINATE` with no live migration and no checkpoint in ISx, so a maintenance event on any one of N nodes discards the whole run. Fixing the transport does not fix the second. `results/operations.md` |
 | Performance stability / inflection points | **met.** Three identified: 32 PEs/node ceiling, all2all crossover at 64 PEs, low-PE jitter |
 | Deliverable 1, source code | **met.** uint64 port with three exchange schedules, plus the SOS build flags H4D requires |
 | Deliverable 2, provisioning recipe | **met and exercised.** `infra/h4d`, deployed end to end in a clean project |
-| Deliverable 3, execution artifacts | **met, with a documented limitation.** No byte counter on H4D tracks RoCE; bandwidth is derived from payload and wall time. `results/D3_telemetry.md` |
+| Deliverable 3, execution artifacts | **met, with a documented limitation.** No byte counter on H4D tracks RoCE; bandwidth is derived from payload and wall time. `results/telemetry.md` |
 | Deliverable 4, architectural narrative | **met.** `docs/architecture.md` |
-| Deliverable 5, failure analysis | **met.** `results/ROOTCAUSE_connection_establishment.md`, with reproducers and two upstream issues filed. Includes three retracted claims and why each was wrong |
+| Deliverable 5, failure analysis | **met.** `results/rxm-connection-limit.md`, with reproducers and two upstream issues filed. Includes three retracted claims and why each was wrong |

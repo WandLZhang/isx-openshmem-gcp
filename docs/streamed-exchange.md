@@ -29,7 +29,7 @@ This has a further consequence:
 
 The heap goes from `NUM_PES × WINDOW × 8` to `WINDOW × 8` per PE. At the target shape of
 25,600 PEs that is **3.36 GB → 131 KB per PE**, which removes the 107 GB/node window
-problem in `SCALE_OUT.md` step 3 entirely, and makes the `WINDOW_KEYS_PER_PEER` reduction
+problem in `docs/scale-out.md` step 3 entirely, and makes the `WINDOW_KEYS_PER_PEER` reduction
 recommended there unnecessary.
 
 With destinations on the outside, `send` also drains in destination order, one contiguous
@@ -44,7 +44,7 @@ overlaps every destination within a round. Each step is a single put to a single
 a barrier. That trades injection concurrency for memory, and on a fabric whose measured
 problem is connection and completion behaviour under concurrent load, it might help or
 hurt — the current round structure is exactly the concurrent put storm that
-`repro/livelock_repro.c` shows failing.
+`tools/repro-rxm-livelock.c` shows failing.
 
 So this is not purely a memory optimisation. It is a different communication schedule, and
 it needs measuring on both axes.
@@ -62,7 +62,7 @@ cluster available for measurement, not written blind.
 
 ## Measured
 
-Implemented in `src/isx64/isx64_stream.c`. Two `h4d-highmem-192` nodes, 16,777,216 keys
+Implemented in `src/cpu/isx64_stream.c`. Two `h4d-highmem-192` nodes, 16,777,216 keys
 per PE, five runs per cell.
 
 | PEs/node | build | validated | rounds | time | rate |

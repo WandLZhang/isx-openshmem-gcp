@@ -27,14 +27,14 @@ An endpoint is one OpenSHMEM PE. Per node, on `h4d-highmem-192` (192 vCPU, 1,488
 | **1.15x, after the streamed exchange** | **1,252 GB** | **799** | **25,568** |
 
 The footprint multiple is peak resident memory over the key array. It is derived from the
-allocations in `src/isx64/isx64_win.c` and explained in the README under Goal 2.
+allocations in `src/cpu/isx64_win.c` and explained in the README under Goal 2.
 
 **Do the memory work first.** It sets the node count at 799 instead of 1,597. A single
 zone has held at most 870 H4D machines, so 799 is near that limit and 1,597 is beyond it.
 
 ## Step 2 — the memory work, in priority order
 
-All three are local changes in `src/isx64/isx64_win.c`, no distributed logic touched.
+All three are local changes in `src/cpu/isx64_win.c`, no distributed logic touched.
 
 1. **Receive slack 1.3 → 1.02** (line 252, `NUM_KEYS_PER_PE * 1.3`). One constant. The
    1.3 is a safety margin on statistical imbalance; at 25,600 PEs the law of large numbers
@@ -58,12 +58,12 @@ linearly with total PEs:
 | 25,600 | **4,096** | 839 MB | **27 GB** |
 
 At 25,600 PEs the current window would consume 107 GB per node, which comes straight out
-of the key budget. **Reduce `WINDOW_KEYS_PER_PEER` to 4096** (`src/isx64/isx64_win.c`
+of the key budget. **Reduce `WINDOW_KEYS_PER_PEER` to 4096** (`src/cpu/isx64_win.c`
 line 58) for runs above roughly 8,000 PEs. Throughput was flat across window sizes in the
 windowed-exchange validation, so this costs nothing measurable.
 
 **This step disappears entirely if the inverted schedule in
-`docs/streamed_exchange_design.md` is implemented.** Because the exchange already rotates
+`docs/streamed-exchange.md` is implemented.** Because the exchange already rotates
 destinations, every PE receives from exactly one sender per step, so the window needs one
 slot rather than `NUM_PES` slots: 3.36 GB → 131 KB per PE at the target shape. That is
 applicable on its own, ahead of the streaming work it came from.
@@ -79,7 +79,7 @@ key bytes/PE    = 39.1 GB
 at 1.15x        = 45 GB/PE  x 32 PEs    = 1,440 GB/node   (fits 1,488)
 ```
 
-Blueprint (`infra/h4d/isx-slurm-h4d.yaml`):
+Blueprint (`deploy/h4d/isx-slurm-h4d.yaml`):
 
 ```yaml
 h4d_cluster_size: 800        # was 2
@@ -139,5 +139,5 @@ Do not assume the 2-node results transfer. In order:
 4. **Then the petabyte run.**
 
 Realistically, expect step 2 to fail at first and expect the connection-establishment work
-in `results/ROOTCAUSE_connection_establishment.md` to need finishing. 819,200 connections
+in `results/rxm-connection-limit.md` to need finishing. 819,200 connections
 per node is two orders of magnitude beyond where it currently breaks.

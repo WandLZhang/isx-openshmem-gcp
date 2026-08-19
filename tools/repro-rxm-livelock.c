@@ -45,7 +45,7 @@
  * confirms the attribution, but completion only goes 0/5 -> 1/5 and the hang moves into
  * the warmup. So it is not concurrency of connection setup, it is that establishing
  * ~8k connections per node on this provider is unreliable. See
- * results/ROOTCAUSE_connection_establishment.md.
+ * results/rxm-connection-limit.md.
  *
  * NOT the cause, each tested and ruled out:
  *   - QP count limits. irdma0 reports max_qp = 899,068.

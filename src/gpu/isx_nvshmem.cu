@@ -5,9 +5,9 @@
  * responsive programming model for this study. It is also the reason to prefer GPUs here:
  * inside an NVLink domain a remote write is a memory operation, so none of the libfabric
  * connection-establishment machinery documented in
- * results/ROOTCAUSE_connection_establishment.md exists to fail.
+ * results/rxm-connection-limit.md exists to fail.
  *
- * The three ISx phases are unchanged from src/isx64/isx64_win.c:
+ * The three ISx phases are unchanged from src/cpu/isx64_win.c:
  *   1. each PE generates its own keys with a PRNG, locally, nothing on the wire
  *   2. one-sided put of each destination's keys into that peer's symmetric heap
  *   3. local sort, then a boundary check against the neighbouring PE
@@ -16,7 +16,7 @@
  * i, PE p sends to (p + i) % n, so every PE targets a distinct destination and receives
  * from exactly one sender per step. The symmetric window is therefore ONE slot rather
  * than one per peer: WINDOW * 8 bytes per PE instead of NUM_PES * WINDOW * 8. At 4,096
- * endpoints that is 128 KB instead of 512 MB. See docs/streamed_exchange_design.md.
+ * endpoints that is 128 KB instead of 512 MB. See docs/streamed-exchange.md.
  *
  * NVLINK DOMAIN SIZE. NVLink tops out at 72 GPUs. Above that, NVSHMEM falls back to RoCE
  * between domains and the network re-enters the picture. At 4,096 endpoints that is 57

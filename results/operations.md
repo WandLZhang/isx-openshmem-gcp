@@ -6,7 +6,7 @@ would actually apply. Five are answered. One is measuring.
 
 ## A. Does the provisioning recipe reproduce from cold? PASS
 
-`infra/h4d/` was run end to end in a clean project with no manual intervention, producing
+`deploy/h4d/` was run end to end in a clean project with no manual intervention, producing
 a working Slurm cluster with Cloud RDMA. The Government reproduction requirement in
 Deliverable 2 is satisfied by demonstration rather than by assertion.
 
@@ -55,7 +55,7 @@ retry budget draining at a near-constant rate. Nothing needed a human.
 The node is undamaged. A 4-PE run immediately after the nine failures passed in 0.010 s,
 and both NICs still reported one active port.
 
-Two consequences for the wrapper in `infra/h4d/run_isx64.sh`:
+Two consequences for the wrapper in `deploy/h4d/run_isx64.sh`:
 
 - A timeout above 244 s is pointless, since the application aborts itself first. The
   wrapper's 300 s therefore acts as a backstop. The application's own abort does the work.

@@ -2,12 +2,12 @@
 # Submit an ISx64 run that survives the two failure modes measured in this study.
 #
 #   1. Transport instability. Connection establishment fails 55-65% of the time above
-#      32 PEs per node (results/ROOTCAUSE_connection_establishment.md). A failed run
+#      32 PEs per node (results/rxm-connection-limit.md). A failed run
 #      self-aborts after exhausting a 2^30 retry budget.
 #   2. Host maintenance. H4D runs onHostMaintenance=TERMINATE and cannot live-migrate,
 #      so a maintenance event on any node kills the job. Checkpointing costs more than
 #      the run at this size, so the answer is to retry
-#      (results/operational_plausibility.md).
+#      (results/operations.md).
 #
 # Both are handled the same way: pre-flight the fabric so a doomed run fails in seconds
 # instead of minutes, then retry.
@@ -30,7 +30,7 @@ export SHMEM_OFI_PROVIDER=psm3
 export PSM3_ALLOW_ROUTERS=1
 export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "${SLURM_JOB_ID:-1}")
 export SHMEM_SYMMETRIC_SIZE=${SHMEM_SYMMETRIC_SIZE:-8G}
-# GID 0 is link-local on this NIC and has no route. See results/adaptive_routing.md.
+# GID 0 is link-local on this NIC and has no route. See results/adaptive-routing.md.
 export FI_VERBS_GID_IDX=${FI_VERBS_GID_IDX:-1}
 # Stops data CQ traffic starving connection-management progress.
 export FI_OFI_RXM_CQ_EQ_FAIRNESS=${FI_OFI_RXM_CQ_EQ_FAIRNESS:-1}

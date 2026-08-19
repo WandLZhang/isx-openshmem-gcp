@@ -1,7 +1,7 @@
 # Windowed exchange removes the symmetric-heap ceiling
 
 Measured 2026-08-15 on two `h4d-highmem-192-lssd` in `us-east1-b`, 32 PEs (16 per node).
-Implementation: `src/isx64/isx64_win.c`.
+Implementation: `src/cpu/isx64_win.c`.
 
 This converts the petabyte target on H4D from "needs 37,500 nodes" to "needs about 700",
 which is inside the largest single-zone H4D pool. No new hardware, no GB200.

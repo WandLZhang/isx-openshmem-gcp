@@ -75,7 +75,7 @@ evidence cannot separate "the fabric does not do adaptive routing" from "these t
 did not need it."**
 
 Settling that needs a topology with multiple hops and multiple paths, which means more
-nodes. It is on the list in `SCALE_OUT.md` for when capacity lands.
+nodes. It is on the list in `docs/scale-out.md` for when capacity lands.
 
 ## Answer for the study
 

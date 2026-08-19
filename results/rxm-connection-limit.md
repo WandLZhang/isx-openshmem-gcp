@@ -1,12 +1,12 @@
 # Connection establishment and the connectionless alternative
 
-2026-08-15. This supersedes the ranked hypotheses in `HYPOTHESES_instability.md`. H1
+2026-08-15. This supersedes the ranked hypotheses in `corrections.md`. H1
 (`FI_DELIVERY_COMPLETE` not implemented) and H3 (TX queue exhaustion) are both wrong.
 The failure occurs during connection establishment.
 
 ## Round timings
 
-`repro/livelock_repro.c` prints each round. Round 0 is not like the others:
+`tools/repro-rxm-livelock.c` prints each round. Round 0 is not like the others:
 
 | PEs/node | total PEs | round 0 | each later round | connections/node |
 |---:|---:|---:|---:|---:|

@@ -133,7 +133,7 @@ uniform distribution and keeps the diff reviewable against upstream.
 
 ```bash
 gcc -O2 -std=c11 -Wall -Wextra -DNDEBUG -I tests -I src/isx64 \
-    -o bin/isx64_stub src/isx64/isx64.c src/isx64/pcg_basic.c -lm
+    -o bin/isx64_stub src/cpu/isx64.c src/cpu/pcg_basic.c -lm
 ./bin/isx64_stub 4000000 2 /tmp/isx64.log
 ```
 
