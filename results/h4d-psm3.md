@@ -36,6 +36,27 @@ ISx64, 64 PEs per node, 8,388,608 keys per PE, 20 consecutive unattended runs.
 | `verbs;ofi_rxm` | 7/20 and 9/20 |
 | **`psm3`** | **20/20** |
 
+## Scale reached
+
+32 PEs per node on two nodes, `SHMEM_SYMMETRIC_SIZE=64G`. Every run validated.
+
+| total | per node | time | exchange share | rate |
+|---:|---:|---:|---:|---:|
+| 68.7 GB | 34 GB | 44.7 s | 91% | 1.54 GB/s |
+| 274.9 GB | 137 GB | 178.3 s | 91% | 1.54 GB/s |
+| 549.8 GB | 275 GB | 364.2 s | 89% | 1.51 GB/s |
+| **1,099.5 GB** | **550 GB** | **730.7 s** | 89% | **1.50 GB/s** |
+
+Rate is flat across a 16x data range, so the exchange is bandwidth-limited rather than
+degrading with size. 550 GB of keys per node is 1,111 GB resident at the 2.02x footprint,
+77% of the 1,440 GB usable.
+
+The largest run on `verbs;ofi_rxm` was 8.59 GB. This is **128x** that, on the same two
+machines.
+
+The exchange is 89% of runtime throughout. On 200 Gbps RoCE the network is the bound,
+which is the opposite of the GPU path where bucketing dominates and the exchange is 8%.
+
 ## Three changes were needed
 
 **1. Build libfabric with PSM3.** The provider is not in a default build. Configure with

@@ -16,12 +16,12 @@ memory, using one-sided RMA. MPI is out of scope.
 | | CPU, H4D | GPU, A100 | TPU, v6e |
 |---|---|---|---|
 | Model | OpenSHMEM over PSM3 | NVSHMEM over NVLink | `jax.lax.all_to_all` |
-| Largest validated | **549.8 GB**, 64 PEs | 8.59 GB, 2 GPUs | not run, see below |
+| Largest validated | **1,099.5 GB**, 64 PEs | 8.59 GB, 2 GPUs | not run, see below |
 | Reproducibility | **20/20** at 64 PEs/node | 3/3 | — |
-| Aggregate rate | 1.51 GB/s | 12.61 GB/s | — |
+| Aggregate rate | 1.50 GB/s | 12.61 GB/s | — |
 | Dominant phase | exchange, 89% | bucket, 80% | — |
 
-Both paths validate and weak-scale cleanly: H4D holds 1.51 GB/s across a 64x data range,
+Both paths validate and weak-scale cleanly: H4D holds 1.50 GB/s across a 16x data range,
 the GPU 12.6 GB/s across 16x. H4D is interconnect-bound on 200 Gbps RoCE. The GPU path is
 bound by bucketing, with the exchange at 8% over NVLink.
 
@@ -37,7 +37,7 @@ switching removes the failure that bounded the study.
 |---|---|---|
 | Round-0 growth, 16 → 64 PEs/node | 16.8x | **3.1x** |
 | Validated runs at 64 PEs/node | 7/20, 9/20 | **20/20** |
-| Largest validated dataset | 8.59 GB | **549.8 GB** |
+| Largest validated dataset | 8.59 GB | **1,099.5 GB** |
 
 `ofi_rxm` opens a connection per peer, so round-0 cost grows with
 `PEs_per_node × total_PEs` and stops making progress near 8,192 connections per node.
@@ -125,7 +125,7 @@ loss. Zero out-of-order arrivals were measured across every run. See
 in substance. `verbs;ofi_rxd`, the provider that advertises it explicitly, cannot complete
 SOS startup.
 
-**Scale.** 549.8 GB validated against 1 PB. Reachable on GB300, not on H4D.
+**Scale.** 1,099.5 GB validated against 1 PB, on two nodes. Reachable on GB300, not on H4D.
 
 ## Layout
 
