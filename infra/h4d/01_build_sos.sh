@@ -52,7 +52,10 @@ cd "${PREFIX}/src"
   https://github.com/ofiwg/libfabric.git
 cd libfabric
 [[ -f configure ]] || ./autogen.sh >/dev/null 2>&1
-./configure --prefix="${PREFIX}" --enable-verbs --enable-rxm --disable-efa --disable-psm3 \
+# PSM3 is the fabric provider Google qualifies for H4D. An earlier version of this
+# script passed --disable-psm3 with no reason recorded, which meant the entire study ran
+# without the platform's own provider available in the build. Enabled now.
+./configure --prefix="${PREFIX}" --enable-verbs --enable-rxm --enable-psm3 --disable-efa \
   >/tmp/lf_conf.log 2>&1
 make -j"${JOBS}" >/tmp/lf_make.log 2>&1
 make install >/dev/null 2>&1

@@ -278,6 +278,22 @@ GB300 is the only option where that is true. H4D reaches the endpoint count easi
 processes are cheap, and misses the memory by needing a third more nodes. GB200 sits
 between the two.
 
+### The study did not use H4D's own fabric provider
+
+**PSM3 is the provider Google qualifies for H4D.** This work ran entirely on
+`verbs;ofi_rxm`, and the libfabric build passed `--disable-psm3` with no reason recorded,
+so PSM3 was not even present to select.
+
+Everything in the failure analysis is therefore a measurement of `verbs;ofi_rxm` on this
+hardware, not of what H4D provides. Whether the connection-establishment ceiling exists on
+PSM3 is untested. `infra/h4d/01_build_sos.sh` now enables it.
+
+The upstream issues stand, because the defects in `verbs;ofi_rxm` are real and reproduce
+with libfabric's own test binary. The conclusion that H4D cannot reach the target also
+stands, because that rests on capacity: the largest recorded H4D run is 192 nodes and a
+petabyte needs 800 to 1,400, which exceeds the unallocated capacity of every zone. No
+provider changes that.
+
 ### Two facts that settle the H4D question
 
 **The supported H4D stack is MPI-based.** Google's published setup guide for H4D Cloud
