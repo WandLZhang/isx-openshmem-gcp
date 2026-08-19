@@ -1,143 +1,102 @@
-# Scale-out recipe
+# Scale-out arithmetic
 
-Everything here is arithmetic against measured per-node numbers. Nothing in it needs new
-code beyond the memory work noted in step 2. The purpose is that whoever gets the capacity
-can execute without re-deriving any of it.
+Node counts for both targets, derived from measured per-node numbers rather than
+estimates. Whoever gets the capacity should not have to re-derive any of this.
 
-## The headline: storage dominates, endpoints come free
+## Inputs, all measured
 
-The two scale requirements are not independent, and the endpoint one is the easy half.
+| quantity | value | source |
+|---|---|---|
+| Peak resident / key array | 2.02x | allocations in `src/cpu/isx64_win.c` |
+| H4D usable memory per node | 1,440 GB | 1,464 GB total, less OS and symmetric heap |
+| GB300 memory per node | 2,076 GB | 1,116 GB HBM + 960 GB Grace, coherent |
+| GB200 memory per node | 1,628 GB | 744 GB HBM + 884 GB Grace |
+| H4D aggregate rate | 1.51 GB/s on 2 nodes | flat across a 64x data range |
+| GPU aggregate rate | 12.61 GB/s on 2 A100 | flat across a 16x data range |
 
-- **4,096 endpoints** at the measured 32 PEs/node needs **128 nodes**.
-- **1 PB in memory** needs **about 800 nodes**, because each node holds 1,488 GB.
+An endpoint is one OpenSHMEM PE on H4D and one GPU on GB200 and GB300.
 
-800 nodes at 32 PEs/node is **25,600 endpoints**, which overshoots the endpoint
-requirement by 6x. So size the cluster for the petabyte and the endpoint count is
-satisfied automatically. There is no configuration where endpoints are the binding
-constraint.
+## Node counts
 
-## Step 1 — pick the node count from the memory footprint
+Keys per node is `usable / 2.02`. Nodes is the larger of the memory requirement and the
+endpoint requirement.
 
-An endpoint is one OpenSHMEM PE. Per node, on `h4d-highmem-192` (192 vCPU, 1,488 GB):
+| machine | keys/node | 1 PB | 100 TB | endpoints at the 1 PB count |
+|---|---:|---:|---:|---:|
+| `h4d-highmem-192` | 713 GB | 1,403 | 140 | 44,896 PE |
+| `a4x-maxgpu-4g` (GB300) | 1,027 GB | 1,024 | 102 | 4,096 GPU |
+| `a4x-highgpu-4g` (GB200) | 806 GB | 1,241 | 124 | 4,964 GPU |
 
-| ISx64 footprint | keys per node | nodes for 1 PB | endpoints at 32 PEs/node |
-|---|---:|---:|---:|
-| 2.30x, as the code stands today | 626 GB | 1,597 | 51,104 |
-| 2.02x, after the cheap in-place fixes | 713 GB | 1,403 | 44,896 |
-| **1.15x, after the streamed exchange** | **1,252 GB** | **799** | **25,568** |
+GB300 at 1 PB is bound by the endpoint requirement rather than by memory: 1,024 nodes
+gives 4,096 GPUs and 2.13 PB against the 2.02 PB needed.
 
-The footprint multiple is peak resident memory over the key array. It is derived from the
-allocations in `src/cpu/isx64_win.c` and explained in the README under Goal 2.
+## Against available capacity
 
-**Do the memory work first.** It sets the node count at 799 instead of 1,597. A single
-zone has held at most 870 H4D machines, so 799 is near that limit and 1,597 is beyond it.
+"Free" is the largest single-zone unallocated pool.
 
-## Step 2 — the memory work, in priority order
+| machine | free | 1 PB | 100 TB |
+|---|---:|---|---|
+| H4D | 562 | **impossible**, needs 2.5x what exists free | fits, 25% of pool |
+| GB300 | 6,814 | fits, 15% of pool | fits, 1.5% |
+| GB200 | 1,082 | short 1.1x | fits, 11% |
 
-All three are local changes in `src/cpu/isx64_win.c`, no distributed logic touched.
+**H4D cannot reach 1 PB under any capacity grant.** 1,403 nodes in one zone exceeds the
+unallocated pool of every zone worldwide, and a grant does not create machines that are
+already allocated. The largest H4D run on record is 192 nodes.
 
-1. **Receive slack 1.3 → 1.02** (line 252, `NUM_KEYS_PER_PE * 1.3`). One constant. The
-   1.3 is a safety margin on statistical imbalance; at 25,600 PEs the law of large numbers
-   makes 1.02 ample. Saves 0.28x.
-2. **In-place bucketize** (lines 242-248). Today `keys` and `send` both exist. Permute
-   `keys` in place by destination with a cycle-following permutation and drop `send`
-   entirely. Saves the `keys` + `send` overlap.
-3. **Streamed exchange.** Release `send` incrementally as `exchange_windowed` drains it
-   while `recv` fills, so the two never both hold a full copy. This is the only one that
-   needs real design, and it is what takes 2.02x down to about 1.15x.
+Free-pool size is not obtainability. H4D returned `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone
+the supply data showed as mostly free, so confirm the machines separately from the quota.
 
-## Step 3 — size the symmetric heap, which grows with PE count
+## Run time
 
-The windowed heap is `NUM_PES × WINDOW_KEYS_PER_PEER × 8` **per PE**, so it grows
-linearly with total PEs:
+At the measured 1.51 GB/s per two H4D nodes, 100 TB across 140 nodes projects to roughly
+16 minutes. The projection is linear in node count and unvalidated above two nodes; the
+all-to-all gets harder as endpoints grow, so treat it as a floor.
 
-| total PEs | `WINDOW_KEYS_PER_PEER` | heap per PE | heap per node at 32 PEs |
-|---:|---:|---:|---:|
-| 4,096 | 16,384 (current) | 537 MB | 17 GB |
-| 25,600 | 16,384 (current) | 3.36 GB | **107 GB** |
-| 25,600 | **4,096** | 839 MB | **27 GB** |
+The run being minutes rather than hours decides three things. Checkpointing is not worth
+building, because writing 1 PB takes longer than sorting it. Retry is the right failure
+strategy. And the bill is dominated by how long machines are held rather than by the sort.
 
-At 25,600 PEs the current window would consume 107 GB per node, which comes straight out
-of the key budget. **Reduce `WINDOW_KEYS_PER_PEER` to 4096** (`src/cpu/isx64_win.c`
-line 58) for runs above roughly 8,000 PEs. Throughput was flat across window sizes in the
-windowed-exchange validation, so this costs nothing measurable.
-
-**This step disappears entirely if the inverted schedule in
-`docs/streamed-exchange.md` is implemented.** Because the exchange already rotates
-destinations, every PE receives from exactly one sender per step, so the window needs one
-slot rather than `NUM_PES` slots: 3.36 GB → 131 KB per PE at the target shape. That is
-applicable on its own, ahead of the streaming work it came from.
-
-## Step 4 — the numbers to actually run
-
-Target: 1 PB, streamed footprint, 800 nodes, 32 PEs/node = 25,600 endpoints.
-
-```
-total keys      = 1e15 bytes / 8 bytes  = 1.25e14 keys
-keys per PE     = 1.25e14 / 25,600      = 4.88e9
-key bytes/PE    = 39.1 GB
-at 1.15x        = 45 GB/PE  x 32 PEs    = 1,440 GB/node   (fits 1,488)
-```
-
-Blueprint (`deploy/h4d/isx-slurm-h4d.yaml`):
-
-```yaml
-h4d_cluster_size: 800        # was 2
-zone: <single zone>          # Cloud RDMA cannot cross zones
-```
-
-Launch:
+## H4D configuration
 
 ```bash
-export SHMEM_OFI_PROVIDER="verbs;ofi_rxm"
-# Measured at n=20 per arm on ISx64: neither 5/20, GID_IDX only 9/20, CQ_EQ_FAIRNESS
-# only 6/20, both 5/20. The arms are not distinguishable from each other at this sample
-# size, so neither setting has a demonstrated effect on the benchmark. Keep GID_IDX=1
-# because verbs;ofi_rxd cannot insert a remote address without it and it costs nothing.
-export FI_VERBS_GID_IDX=1              # routable GID, see results/ROOTCAUSE_*.md
-export FI_OFI_RXM_CQ_EQ_FAIRNESS=1     # stops data traffic starving CM progress
-export SHMEM_SYMMETRIC_SIZE=2G         # NUM_PES x WINDOW x 8, with WINDOW=4096
+export SHMEM_OFI_PROVIDER=psm3
+export PSM3_ALLOW_ROUTERS=1
+export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "$SLURM_JOB_ID")
+export SHMEM_SYMMETRIC_SIZE=64G
 
-srun -N800 --ntasks-per-node=32 --mpi=pmi2 --export=ALL \
-     ./isx64stream 4880000000 1 results/pb_run
+srun -N140 --ntasks-per-node=32 --mpi=pmi2 --export=ALL \
+     ./isx64win 22321428571 1 results/run
 ```
 
-`isx64stream` holds the symmetric window at `WINDOW * 8` bytes per PE instead of
-`NUM_PES * WINDOW * 8`, which removes step 3 above. That part is structural and holds.
+`keys_per_pe` is `total_keys / (nodes * 32)`. 100 TB is 1.25e13 keys, so 140 nodes at 32
+PEs gives 2.79e9 per PE.
 
-Its stability advantage does not. A five-run sample gave 4/5 against the windowed build's
-1/5 at 64 PEs per node. Repeating at twenty runs gave **7/20**, so the 4/5 was a lucky
-draw. The windowed build's twenty-run figure was still measuring when this was written;
-check `results/` for it before choosing. Treat any completion rate here as provisional
-until it is measured at real node counts.
+SOS needs `deploy/h4d/sos-psm3-stx.patch` before it will start on PSM3. The blueprint
+node count is `h4d_cluster_size` in `deploy/h4d/isx-slurm-h4d.yaml`, and Cloud RDMA cannot
+cross zones.
 
-## Step 5 — quota
+## Memory work, if a node count needs reducing
 
-| target | nodes | vCPU of H4D, one region |
-|---|---:|---:|
-| 4,096 endpoints only | 128 | 24,576 |
-| **1 PB and 25,600 endpoints** | **800** | **153,600** |
+Peak is 2.02x today, already down from 2.30x. Two changes remain, both local to
+`src/cpu/isx64_win.c`:
 
-Self-service is capped at 500 in every region, so both need an approved escalation via
-an internal capacity escalation. Quota grants permission. It does not reserve machines. Confirm the
-zone holds the machines as a separate step. us-central1-a and us-central1-b were both
-exhausted at a time when quota was sufficient.
+1. **Streamed exchange.** Release `send` incrementally as the exchange drains it while
+   `recv` fills, so the two never both hold a full copy. Takes 2.02x to about 1.15x, which
+   would put 1 PB on H4D at 799 nodes. Still beyond the free pool.
+2. **Single-slot symmetric window.** `src/cpu/isx64_stream.c` already does this: because
+   the exchange rotates destinations, every PE receives from exactly one sender per step,
+   so the window is `WINDOW * 8` bytes rather than `NUM_PES * WINDOW * 8`. At 25,600 PEs
+   that is 131 KB instead of 3.36 GB per PE. See `docs/streamed-exchange.md`.
 
-## Re-validation once capacity lands
+Neither changes the conclusion for H4D at 1 PB.
 
-Do not assume the 2-node results transfer. In order:
+## What must be re-measured at real node counts
 
-1. **32 PEs/node on 4 nodes.** Confirms the instability is not specific to this node pair,
-   which is the one hypothesis that could never be tested at 2 nodes.
-2. **The stability settings at 128+ nodes.** `FI_VERBS_GID_IDX=1` and
-   `FI_OFI_RXM_CQ_EQ_FAIRNESS=1` were measured on 2 nodes. Connections per node scale as
-   `PEs_per_node × total_PEs`, so at 25,600 PEs and 32 PEs/node that is 819,200
-   connections per node against 8,192 today. This is the largest single unknown in the
-   whole plan, and step 1 above tests it.
-3. **A 10-run reproducibility set** at whatever the largest stable shape turns out to be,
-   before attempting the full petabyte.
-4. **Then the petabyte run.**
+Everything here above two nodes is arithmetic. In order:
 
-Realistically, expect step 2 to fail at first and expect the connection-establishment work
-in `results/rxm-connection-limit.md` to need finishing. 819,200 connections
-per node is two orders of magnitude beyond where it currently breaks.
+1. **32 PEs/node on 4 nodes**, which tests whether anything is specific to a node pair.
+2. **The scaling curve at 8, 16, 32 nodes**, holding keys per node constant. That gives
+   the weak-scaling slope the projection assumes.
+3. **A 20-run reproducibility set** at the largest stable shape.
+4. **Then the target run.**
