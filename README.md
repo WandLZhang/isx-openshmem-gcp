@@ -26,7 +26,8 @@ the GPU 12.6 GB/s across 16x. H4D is interconnect-bound on 200 Gbps RoCE. The GP
 bound by bucketing, with the exchange at 8% over NVLink.
 
 The TPU implementation is written and its key generation corrected, but no slice was
-granted. 141 combinations of type, size and zone were tried across spot and on-demand.
+granted: 141 spot combinations across six accelerator types all returned
+`WAITING_FOR_RESOURCES`. See [results/tpu.md](results/tpu.md) for what to do instead.
 
 ### The fabric provider decides everything on H4D
 
@@ -149,6 +150,7 @@ tests/            single-PE shim for local correctness
 | The `ofi_rxm` connection limit | `results/rxm-connection-limit.md` |
 | GPU validation on A100 | `results/gpu-nvshmem.md` |
 | Adaptive routing evidence | `results/adaptive-routing.md` |
+| TPU status and how to get a measurement | `results/tpu.md` |
 | Operational readiness, six tests | `results/operations.md` |
 | Scaling to a petabyte | `docs/scale-out.md` |
 | Porting ISx to 64 bits | `docs/porting.md` |
