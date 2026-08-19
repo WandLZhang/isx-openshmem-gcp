@@ -56,5 +56,5 @@ would do the same job for less. Not done, because correctness came first.
 ## What this does not show
 
 Nothing about GB300. A100 has 40 GB of HBM against GB300's 279 GB, no Grace coherent
-memory, and 12 NVLink lanes rather than an NVL72 domain. This validates the algorithm, the
+memory, and 12 NVLink lanes against an NVL72 domain. This validates the algorithm, the
 NVSHMEM calls and the one-slot window. Performance on GB300 is unmeasured.
