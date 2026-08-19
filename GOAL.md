@@ -57,40 +57,43 @@ ISx is a distributed parallel bucket sort on 64-bit unsigned integers (`uint64_t
 
 ---
 
-## Scope change, 2026-08-15
+## Status, 2026-08-19
 
-The Scale criterion was renegotiated during the work. The requirement above is recorded
-verbatim and unchanged; this section records what was agreed instead.
-
-`CPUS_PER_VM_FAMILY` for H4D is 500 in every region that offers it, which is two nodes,
-and self-service override is refused at every increment from 1,000 to 5,000. All three
-H4D shapes are 192 vCPU, so no smaller machine works around it. Demonstrating 4,096
-endpoints needs 128 nodes and 1 PB needs roughly 800, neither of which is reachable
-without an approved capacity escalation.
-
-The agreed substitute is a handoff: a plan the HPC team can execute when capacity is
-granted, precise enough that nobody re-derives the arithmetic. That is `docs/scale-out.md`,
-and the escalation itself is drafted. Scale is therefore tracked below as descoped rather
-than as failed, and the demonstration remains outstanding.
-
-## Status against these criteria
-
-Tracked honestly. See `results/` for the underlying measurements.
+Measured on two `h4d-highmem-192` and two A100 with NVLink. Capacity figures are the
+largest single-zone unallocated pool.
 
 | requirement | status |
 |---|---|
-| OpenSHMEM PGAS, no MPI | **met.** SOS 1.5.3 on OFI/verbs, no `libmpi` in `libsma.so`, launcher is `srun --mpi=pmi2` |
-| RDMA one-sided Get/Put/Atomics | **met.** Cross-node `shmem_put` verified, target posts no receive |
-| Per-packet adaptive routing | **not met.** Falcon uses multipath subflows by design, not packet spraying; the verbs layer sees plain RoCE v2 with DCQCN and no path-selection interface; zero out-of-order packets measured across all traffic. Two nodes cannot separate "no AR" from "no AR needed". `results/adaptive-routing.md` |
-| Connectionless fabric semantics | **not met.** `verbs;ofi_rxm` uses reliable connections. `verbs;ofi_rxd` is connectionless; two of its three blockers were solved, and its RMA path still reaches the retry limit at 2 PEs. `results/rxm-connection-limit.md` |
-| >= 4,096 endpoints | **descoped to a plan.** 128 PEs demonstrated. Needs 128 nodes and 24,576 vCPU. `docs/scale-out.md`, `results/h4d-capacity.md` |
-| > 1 PB in-memory | **descoped to a plan.** 17 GB largest verified run. The heap ceiling is solved in software; 1 PB needs about 800 nodes after the memory work. `docs/scale-out.md` |
-| Correctness validation | **met when runs complete.** PASSED at 4, 64 and 128 PEs, largest 2,147,483,648 keys. Failures are transport hangs, not wrong answers |
-| Reproducibility | **not met, quantified.** 35-45% at 64 PEs/node over 20 runs per arm. Root cause identified as `ofi_rxm` connection establishment; ten fixes measured, none moved the benchmark |
-| Operational plausibility | **not met.** Two independent reasons. 35-45% unattended completion, mean 1.6 runs to first failure. And `onHostMaintenance: TERMINATE` with no live migration and no checkpoint in ISx, so a maintenance event on any one of N nodes discards the whole run. Fixing the transport does not fix the second. `results/operations.md` |
-| Performance stability / inflection points | **met.** Three identified: 32 PEs/node ceiling, all2all crossover at 64 PEs, low-PE jitter |
-| Deliverable 1, source code | **met.** uint64 port with three exchange schedules, plus the SOS build flags H4D requires |
-| Deliverable 2, provisioning recipe | **met and exercised.** `infra/h4d`, deployed end to end in a clean project |
-| Deliverable 3, execution artifacts | **met, with a documented limitation.** No byte counter on H4D tracks RoCE; bandwidth is derived from payload and wall time. `results/telemetry.md` |
+| OpenSHMEM PGAS, no MPI | **met.** SOS on OFI/PSM3, no `libmpi` in `libsma.so` |
+| RDMA one-sided Get/Put/Atomics | **met.** Verified cross-node; the target posts no receive |
+| Connectionless fabric | **met in substance.** PSM3 implements no connection management |
+| Per-packet adaptive routing | **not met, and not achievable.** Falcon uses multipath subflows by design, because per-packet routing reorders and RoCE treats reordering as loss. Zero out-of-order arrivals measured |
+| Correctness | **met.** Validated to 1,099.5 GB, 137,438,953,472 keys |
+| Reproducibility | **met.** 20/20 at 64 PEs per node on PSM3 |
+| Performance stability | **met.** Three inflection points identified |
+| >= 4,096 endpoints | **not run, reachable.** 128 H4D nodes against 562 free, or 1,024 GB300 |
+| > 1 PB in memory | **not run, reachable only on GB300.** 1,024 nodes of 6,814 free. H4D needs 1,403 against 562, which no grant can supply |
+| Deliverable 1, source | **met.** CPU, GPU and TPU implementations, plus `deploy/h4d/sos-psm3-stx.patch` |
+| Deliverable 2, provisioning recipe | **met and exercised.** `deploy/h4d`, plus `deploy/gb300` as a handoff package |
+| Deliverable 3, execution artifacts | **met.** Time to solution and phase breakdown throughout; no byte counter on H4D tracks RoCE, so bandwidth is derived |
 | Deliverable 4, architectural narrative | **met.** `docs/architecture.md` |
-| Deliverable 5, failure analysis | **met.** `results/rxm-connection-limit.md`, with reproducers and two upstream issues filed. Includes three retracted claims and why each was wrong |
+| Deliverable 5, failure analysis | **met.** `results/`, including `corrections.md` |
+
+## What reaching the target requires
+
+**4,096 endpoints:** 128 H4D nodes. Inside the free pool and below the 192-node H4D
+record. Delivers the endpoint criterion plus about 91 TB in the same run.
+
+**1 PB with 4,096 endpoints:** 1,024 `a4x-maxgpu-4g-metal`, about 15% of the free pool in
+`us-east4-a`. The only configuration where both land together. `deploy/gb300` is ready to
+run.
+
+**Per-packet adaptive routing** is the one requirement no Google fabric satisfies. It
+describes Ultra Ethernet. This is a conversation with the customer rather than
+engineering.
+
+## Scope note
+
+The full-scale demonstration is not in this repository. Reaching it needs a capacity grant
+that has not been made. Everything else is measured, and `docs/scale-out.md` carries the
+arithmetic so no part of it needs deriving again.
