@@ -1,7 +1,7 @@
 # ISx64 build.
 #
 # Requires an OpenSHMEM implementation providing oshcc. On GCE H4D this is Sandia
-# OpenSHMEM built against libfabric with the verbs;ofi_rxm provider; see
+# OpenSHMEM built against libfabric with the psm3 provider; see
 # ../../infra/h4d/build_sos.sh.
 #
 #   make            optimized build (the one to benchmark)
@@ -40,8 +40,8 @@ check: all
 # A run that passes `check` over the tcp provider proves nothing about the fabric.
 provider-check:
 	@echo "FI_PROVIDER=$${FI_PROVIDER:-<unset>}"
-	@fi_info -p "verbs;ofi_rxm" -c FI_RMA 2>/dev/null | grep -E "provider|caps" || \
-	  echo "WARNING: verbs;ofi_rxm with FI_RMA not available -- see PORTING.md"
+	@fi_info -p psm3 -c FI_RMA 2>/dev/null | grep -E "provider|caps" || \
+	  echo "WARNING: psm3 with FI_RMA not available -- see results/h4d-psm3.md"
 
 clean:
 	rm -f $(BIN)/isx64 $(BIN)/isx64.debug

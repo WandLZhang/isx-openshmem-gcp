@@ -42,11 +42,11 @@ echo "machine       : $(curl -s -H Metadata-Flavor:Google \
 echo
 
 echo "--- 1. fabric capabilities ---"
-fi_info -p "verbs;ofi_rxm" -c FI_RMA >/dev/null 2>&1
-check $? "verbs;ofi_rxm offers FI_RMA"
-fi_info -p "verbs;ofi_rxm" -c FI_ATOMIC >/dev/null 2>&1
-check $? "verbs;ofi_rxm offers FI_ATOMIC"
-fi_info -p "verbs;ofi_rxm" 2>/dev/null | grep -E "provider:|domain:|version:" | head -6
+fi_info -p psm3 -c FI_RMA >/dev/null 2>&1
+check $? "psm3 offers FI_RMA"
+fi_info -p psm3 -c FI_ATOMIC >/dev/null 2>&1
+check $? "psm3 offers FI_ATOMIC"
+fi_info -p psm3 2>/dev/null | grep -E "provider:|domain:|version:" | head -6
 
 echo
 echo "--- 2. the IRDMA interface is present and up ---"

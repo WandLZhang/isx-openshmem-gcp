@@ -74,24 +74,6 @@ registration is the blocker. `ibv_reg_mr` on a device pointer fails with errno 1
 the same buffer succeeds and the packaged NVSHMEM has no dmabuf setting to reach it.
 Root cause, evidence and three fixes in [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
 
-### PSM3 against `verbs;ofi_rxm`
-
-Earlier work here used `verbs;ofi_rxm`. PSM3 is the provider Google qualifies for H4D, and
-switching removes the failure that bounded the study.
-
-| | `verbs;ofi_rxm` | `psm3` |
-|---|---|---|
-| Round-0 growth, 16 to 64 PEs/node | 16.8x | **3.1x** |
-| Validated runs at 64 PEs/node | 7/20, 9/20 | **20/20** |
-| Highest working density | 32 PEs/node | **192 PEs/node**, 20/20 |
-| Largest validated dataset | 8.59 GB | **1,400 GB** |
-| Aggregate rate | 1.50 GB/s | **5.10 GB/s** |
-
-`ofi_rxm` opens a connection per peer, so round-0 cost grows with
-`PEs_per_node x total_PEs` and stops making progress near 8,192 connections per node.
-PSM3 implements no connection management, so nothing grows with the square of the job.
-The three changes required to run SOS on PSM3 are in [results/h4d-psm3.md](results/h4d-psm3.md).
-
 ## How it was built
 
 Deliverable 4: the design decisions, the tradeoffs between scale and performance, and where
@@ -158,37 +140,32 @@ Both are required and neither is documented.
 **`--enable-ofi-mr=basic`.** SOS defaults to scalable memory registration. The H4D provider
 rejects it and `fi_getinfo` returns no data.
 
-**`--enable-hard-polling`.** SOS enables target counters unless this is set, which adds
-`FI_RMA_EVENT` to the hints. `verbs;ofi_rxm` on `irdma0` supports neither `FI_RMA_EVENT` nor
-`FI_FENCE`, so `shmem_init()` aborts with `Transport init failed (-61)`.
+**A source patch for shared transmit contexts.** PSM3 does not implement STX and SOS binds
+one unconditionally, so `shmem_init()` aborts at `transport_ofi.c:606`.
+`SHMEM_OFI_STX_MAX` cannot turn it off, because SOS overrides the value.
+`deploy/h4d/sos-psm3-stx.patch` lets the bind degrade instead of failing, and it is worth
+sending upstream because it fixes SOS for any provider without STX.
 
 libfabric also has to be built from source. The HPC VM image ships 1.22.0 with no matching
-`-devel` in any repo, and the only `-devel` offered conflicts with `mercury`.
+`-devel` in any repo, and the only `-devel` offered conflicts with `mercury`. Configure it
+with `--enable-psm3`, which is not in a default build, and install `libuuid-devel`.
 
-A third change is a source patch rather than a configure flag. PSM3 does not implement
-shared transmit contexts and SOS binds one unconditionally, so it aborts at
-`transport_ofi.c:606`. `deploy/h4d/sos-psm3-stx.patch` lets the bind degrade instead of
-failing, and it is worth sending upstream because it fixes SOS for any provider without STX.
+### The symmetric heap ceiling
 
-### Two walls that belonged to the provider
+The heap will not grow past about 32 GB per node. Aggregate rather than per PE: one PE with
+32 GB works, eight PEs with 4 GB each works, and every 64 GB-per-node arrangement fails.
+Cause is basic MR pinning and registering the whole heap at `shmem_init()`, and huge pages
+do not lift it.
 
-Both were measured on `verbs;ofi_rxm` and both are gone on PSM3. That they belonged to the
-provider rather than to H4D is the study's main transport finding.
+Stock ISx puts the receive buffer in that heap, which caps the dataset at about 26.7 GB of
+keys per node and puts 1 PB at roughly 37,500 nodes. `src/cpu/isx64_win.c` keeps one window
+slot per PE in the heap and the dataset in ordinary memory, so the heap is about 0.5 MB per
+PE and does not grow with the data. Node count then follows ordinary memory: 713 GB of keys
+per node, 1,403 nodes for 1 PB.
 
-**32 PEs per node.** Past it, every configuration died with
-`Operation retry limit exceeded (1073741824)`. The wall tracked PEs per node rather than
-total, and `SHMEM_OFI_STX_AUTO=1` and `SHMEM_OFI_STX_MAX=8` did not move it. Cause is
-connection establishment: `ofi_rxm` opens a connection per peer, so setup cost grows with
-`PEs_per_node × total_PEs` and stalls near 8,192 connections per node. On PSM3 the wall does
-not exist and 192 PEs per node validates 20/20.
-
-**About 32 GB of symmetric heap per node.** Aggregate rather than per PE: one PE with 32 GB
-works, eight PEs with 4 GB each works, every 64 GB-per-node arrangement fails. Cause is
-basic MR pinning the whole heap at `shmem_init()`, and huge pages do not lift it. Stock ISx
-puts the receive buffer in that heap, which capped the dataset at about 26.7 GB of keys per
-node and put 1 PB at roughly 37,500 nodes. `src/cpu/isx64_win.c` keeps one window slot per
-PE in the heap and the dataset in ordinary memory, so the heap is about 0.5 MB per PE and
-does not grow with the data.
+Two `h4d-highmem-192` then sorted **1,400 GB** at **5.10 GB/s** across 384 PEs, every run
+validated. That is 98% of what two nodes hold at the measured 2.02x footprint, and the
+exchange is 84-88% of runtime, so the benchmark measures the fabric rather than the CPU.
 
 ### The TPU path
 
@@ -211,9 +188,8 @@ Cluster Director publishes the hierarchy to Slurm and GKE: a sub-block is one ra
 single top-of-rack switch, a block is sub-blocks on non-blocking fabric, a cluster is
 blocks. A reservation is what makes it visible.
 
-It would not have helped with either wall above. Both were properties of the provider's
-connection and registration model rather than of how work is arranged across a topology.
-Changing the provider fixed them; rearranging ranks would not have.
+It does not help with the heap ceiling above, which is a property of memory registration
+rather than of how work is arranged across a topology.
 
 Where it matters next is GB300. NVLink spans 72 GPUs, so at 4,104 endpoints 56 of every 57
 bytes in the all-to-all cross RoCE. Making the bucket assignment domain-aware keeps most
@@ -413,7 +389,7 @@ tests/            single-PE shim for local correctness
 | Adaptive routing evidence | `results/adaptive-routing.md` |
 | Operational readiness, six tests | `results/operations.md` |
 | Telemetry H4D does and does not expose | `results/telemetry.md` |
-| The `ofi_rxm` connection limit | `results/rxm-connection-limit.md` |
+| Why the default libfabric provider does not scale | `results/rxm-connection-limit.md` |
 | The `CPUS_PER_VM_FAMILY` cap | `results/h4d-capacity.md` |
 | Memory footprint, and getting it below 2.02x | `results/windowed-exchange.md` |
 | Node counts, quota, and scaling to a petabyte | `results/scale-out.md` |

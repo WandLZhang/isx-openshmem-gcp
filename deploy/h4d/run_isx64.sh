@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Submit an ISx64 run that survives the two failure modes measured in this study.
+# Submit an ISx64 run that survives host maintenance.
 #
-#   1. Transport instability. Connection establishment fails 55-65% of the time above
-#      32 PEs per node (results/rxm-connection-limit.md). A failed run
-#      self-aborts after exhausting a 2^30 retry budget.
-#   2. Host maintenance. H4D runs onHostMaintenance=TERMINATE and cannot live-migrate,
-#      so a maintenance event on any node kills the job. Checkpointing costs more than
-#      the run at this size, so the answer is to retry
-#      (results/operations.md).
+# H4D runs onHostMaintenance=TERMINATE and cannot live-migrate, so a maintenance event on
+# any node kills the job. Checkpointing costs more than the run at this size, so the answer
+# is to retry (results/operations.md).
 #
 # Both are handled the same way: pre-flight the fabric so a doomed run fails in seconds
 # instead of minutes, then retry.

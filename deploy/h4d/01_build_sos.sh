@@ -8,7 +8,7 @@
 #
 # This is the compliance path. The study excludes MPI-based implementations, so the
 # runtime under ISx64 must be genuine OpenSHMEM doing genuine one-sided RMA. SOS sits
-# directly on libfabric, and H4D Cloud RDMA presents as `verbs;ofi_rxm` over the Intel
+# directly on libfabric, and H4D Cloud RDMA is driven through `psm3` over the Intel
 # iDPF/iRDMA driver, so no MPI appears anywhere in the data path.
 #
 # Run on one H4D node, install to shared storage so the cluster sees one build.
@@ -63,15 +63,14 @@ export LD_LIBRARY_PATH="${PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 echo "    $("${PREFIX}/bin/fi_info" --version | head -1)"
 
 echo "==> 3. the capabilities OpenSHMEM needs"
-# ofi_rxm is a reliable-message layer over verbs RC. OpenSHMEM needs FI_RMA for put/get
-# and FI_ATOMIC for shmem_atomic_fetch_add, which ISx64 uses to claim space in a peer's
-# receive buffer. If either is absent, SOS may still build and fall back to a transport
-# that measures nothing about RDMA.
-"${PREFIX}/bin/fi_info" -p "verbs;ofi_rxm" -c FI_RMA >/dev/null 2>&1 \
-  || { echo "FATAL: verbs;ofi_rxm does not offer FI_RMA" >&2; exit 2; }
-"${PREFIX}/bin/fi_info" -p "verbs;ofi_rxm" -c FI_ATOMIC >/dev/null 2>&1 \
-  || { echo "FATAL: verbs;ofi_rxm does not offer FI_ATOMIC" >&2; exit 2; }
-"${PREFIX}/bin/fi_info" -p "verbs;ofi_rxm" -c FI_RMA | grep -E "provider:|domain:|protocol:" | head -4
+# OpenSHMEM needs FI_RMA for put/get and FI_ATOMIC for shmem_atomic_fetch_add, which ISx64
+# uses to claim space in a peer's receive buffer. If either is absent, SOS may still build
+# and fall back to a transport that measures nothing about RDMA.
+"${PREFIX}/bin/fi_info" -p psm3 -c FI_RMA >/dev/null 2>&1 \
+  || { echo "FATAL: psm3 does not offer FI_RMA" >&2; exit 2; }
+"${PREFIX}/bin/fi_info" -p psm3 -c FI_ATOMIC >/dev/null 2>&1 \
+  || { echo "FATAL: psm3 does not offer FI_ATOMIC" >&2; exit 2; }
+"${PREFIX}/bin/fi_info" -p psm3 -c FI_RMA | grep -E "provider:|domain:|protocol:" | head -4
 echo "    FI_RMA and FI_ATOMIC both present on irdma0"
 
 # ---------------------------------------------------------------------------------
@@ -112,7 +111,7 @@ export PATH=/opt/isx/bin:$PATH
 export LD_LIBRARY_PATH=/opt/isx/lib:$LD_LIBRARY_PATH
 
 # PSM3 is the provider Google qualifies for H4D. Measured 20/20 validated runs at
-# 64 PEs/node against 7-9/20 on verbs;ofi_rxm, and round-0 connection cost grows 3.1x
+# 192 PEs/node, one per vCPU, and round-0 connection cost grows 3.1x
 # rather than 16.8x across the same range. See results/h4d-psm3.md.
 export FI_PROVIDER=psm3
 export SHMEM_OFI_PROVIDER=psm3
