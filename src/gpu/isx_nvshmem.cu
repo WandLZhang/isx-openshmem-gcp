@@ -34,7 +34,9 @@
  *   nvshmrun -n 2 ./isx_nvshmem <keys_per_pe> [iters]
  *   # or under Slurm: srun -n 2 ./isx_nvshmem <keys_per_pe> [iters]
  *
- * STATUS: validated on 2 x A100 with NVLink. Never run on GB300. The algorithm and the
+ * STATUS: validated on 8 x H200 with NVLink to 137.44 GB. Never run on GB300, and
+ * multi-node has no working NVSHMEM transport on Cloud RoCE yet
+ * (results/gpu-nvshmem.md). The algorithm and the
  * NVSHMEM calls are exercised; nothing here says anything about GB300 performance.
  */
 #include <cstdio>

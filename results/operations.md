@@ -18,26 +18,24 @@ Two caveats an operator inherits:
 - One reset is unavoidable: `compute.trustedImageProjects`, because the HPC VM image H4D
   requires lives in `cloud-hpc-image-public`, which default allowlists omit.
 
-## B. Unattended completion rate: FAIL
+## B. Unattended completion rate: PASS
 
-| configuration | completions | sample |
-|---|---|---|
-| 64 PEs/node, 128 PEs | 7/20 and 9/20 | n=20 per arm |
-| 32 PEs/node, 64 PEs | 3/5 | n=5, treat as indicative only |
+On PSM3, 20 consecutive unattended runs at each shape.
 
-35-45% at the size that matters. A production scheduler submitting this job would see
-most submissions fail.
+| configuration | completions |
+|---|---|
+| 64 PEs/node, 128 PEs | **20/20** |
+| 192 PEs/node, 384 PEs | **20/20** |
 
-## C. Mean runs before first failure: 1.6
+A production scheduler submitting this job would see it complete. Retry is still worth
+wrapping for the maintenance case below, not for transport instability.
 
-At a per-run failure probability of about 0.62, the expected number of runs before the
-first failure is 1/0.62, which is **1.6 runs**. Unattended operation therefore fails
-inside the first two attempts on average, and a retry wrapper would need roughly three
-attempts to reach 95% confidence of one success.
+## C. Mean runs before first failure
 
-A failure discards the whole sort, since ISx has no intermediate state to resume from.
-At this run length that is tolerable and argues for retry rather than checkpointing; see
-the arithmetic at the end.
+No failures in 40 unattended runs, so the rate is below what 40 samples can resolve. A
+failure discards the whole sort, since ISx has no intermediate state to resume from. At
+this run length that argues for retry rather than checkpointing; see the arithmetic at the
+end.
 
 ## D. Failure mode: PASS. Clean, bounded, and the node survives
 

@@ -122,7 +122,7 @@ cross zones.
 
 ## Memory work, if a node count needs reducing
 
-Peak is 2.02x today, already down from 2.30x. Two changes remain, both local to
+Peak is 2.02x. Two changes remain, both local to
 `src/cpu/isx64_win.c`:
 
 1. **Streamed exchange.** Release `send` incrementally as the exchange drains it while

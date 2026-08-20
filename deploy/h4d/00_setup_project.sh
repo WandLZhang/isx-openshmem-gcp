@@ -204,7 +204,8 @@ echo "==> the quota that actually binds H4D (NOT the general CPUS quota)"
 gcloud alpha services quota list --service=compute.googleapis.com \
   --consumer=projects/${PROJECT} --filter="metric:cpus_per_vm_family" 2>/dev/null \
   | grep -iA2 "H4D" | head -6 || echo "    (could not read; check manually)"
-echo "    500 / 192 vCPU = 2 nodes. For 128 nodes request 24576."
+echo "    500 / 192 vCPU = 2 nodes. For 4,096 endpoints request 4224 (22 nodes);"
+echo "    for 100 TB request 26880 (140 nodes)."
 
 cat <<EOF
 

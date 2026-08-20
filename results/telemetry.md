@@ -16,8 +16,10 @@ which is what the benchmark reports anyway:
 | source | measurement |
 |---|---|
 | 64-PE all-to-all, 8.59 GiB per node | 1.936 s → **4.44 GB/s** per node effective |
-| `fi_pingpong`, 1 MB messages, `verbs;ofi_rxm` | **8.15 GB/s** |
-| `fi_pingpong`, 1 MB messages, `verbs;ofi_rxd` | **5.52 GB/s** |
+| `fi_pingpong`, 1 MB messages | **8.15 GB/s** |
+
+Measured before the move to PSM3, so it bounds the link rather than the provider in use.
+Re-measure on `psm3` when a cluster is next up.
 
 The link is 200 Gbps = 25 GB/s nominal, so the pingpong ceiling is about 33% of nominal
 and the all-to-all achieves about 55% of the pingpong ceiling.
