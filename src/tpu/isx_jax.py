@@ -72,7 +72,23 @@ def make_keys(mesh: Mesh, n_dev: int, per_dev: int, seed: int) -> jnp.ndarray:
         return raw.astype(jnp.uint64)
 
     idx = jax.device_put(jnp.arange(n_dev), NamedSharding(mesh, P("pe")))
-    return jax.shard_map(gen, mesh=mesh, in_specs=P("pe"), out_specs=P("pe"))(idx)
+    return _shard_map(gen, mesh, P("pe"), P("pe"))(idx)
+
+
+def _shard_map(fn, mesh, in_specs, out_specs):
+    """`jax.shard_map` with varying-manual-axis checking off where the version has it.
+
+    Inside the mapped function, `jnp.searchsorted` and `jnp.bincount` compare a
+    device-varying array against a replicated one such as `jnp.arange(n_dev)`. From JAX
+    0.6 that raises `Primitive le_to requires varying manual axes to match`. The
+    comparison is well defined here, so turn the check off rather than materialise a
+    varying copy of every constant.
+    """
+    kw = dict(mesh=mesh, in_specs=in_specs, out_specs=out_specs)
+    try:
+        return jax.shard_map(fn, check_vma=False, **kw)
+    except TypeError:
+        return jax.shard_map(fn, **kw)
 
 
 def build_padded(mesh: Mesh, n_dev: int, bucket_width: int, cap: int):
@@ -84,26 +100,33 @@ def build_padded(mesh: Mesh, n_dev: int, bucket_width: int, cap: int):
 
     def local(keys):
         # keys: (per_dev,) on this device
-        dest = jnp.minimum(keys // bucket_width, n_dev - 1).astype(jnp.int32)
-
-        # Stable ordering by destination, then a per-destination rank, gives each key a
-        # slot in a dense (n_dev, cap) buffer without any data-dependent shapes. XLA
-        # needs static shapes, which is the whole constraint this function works around.
-        order = jnp.argsort(dest, stable=True)
-        sorted_dest = dest[order]
-        sorted_keys = keys[order]
-        pos = jnp.arange(sorted_dest.shape[0])
-        start = jnp.searchsorted(sorted_dest, jnp.arange(n_dev), side="left")
-        rank_in_bucket = pos - start[sorted_dest]
+        #
+        # The destination of a key is `key // bucket_width`, so it is the top bits of the
+        # key. Sorting the keys therefore groups them by destination as a side effect, and
+        # the bucket boundaries are a `searchsorted` on the edges. That removes the
+        # argsort of the destination array and, more importantly, turns the placement into
+        # a gather. Measured on v6e-4 at 16.8M keys per device: 3.245 s for
+        # argsort-plus-scatter against 0.362 s this way, same keys out. See
+        # `isx_jax_phases.py`.
+        sk = jax.lax.sort(keys)
+        edges = jnp.arange(1, n_dev, dtype=jnp.uint64) * jnp.uint64(bucket_width)
+        start = jnp.searchsorted(sk, edges, side="left").astype(jnp.int32)
+        bounds = jnp.concatenate(
+            [
+                jnp.zeros(1, jnp.int32),
+                start,
+                jnp.full(1, keys.shape[0], jnp.int32),
+            ]
+        )
+        counts = jnp.diff(bounds)
 
         # Sentinel is MAX_KEY, which is above every real key, so padding sorts to the end
-        # and is trimmed by the count.
-        buf = jnp.full((n_dev, cap), MAX_KEY, dtype=jnp.uint64)
-        keep = rank_in_bucket < cap
-        buf = buf.at[sorted_dest, jnp.minimum(rank_in_bucket, cap - 1)].set(
-            jnp.where(keep, sorted_keys, MAX_KEY)
-        )
-        counts = jnp.bincount(dest, length=n_dev)
+        # and is trimmed by the count. A bucket longer than `cap` loses its tail here and
+        # `counts` still reports the true length, so verification catches it.
+        col = jnp.arange(cap, dtype=jnp.int32)
+        idxs = bounds[:n_dev, None] + col[None, :]
+        valid = col[None, :] < counts[:, None]
+        buf = jnp.where(valid, sk[jnp.minimum(idxs, keys.shape[0] - 1)], MAX_KEY)
 
         # The exchange. Axis 0 is destination-major and is split across the mesh.
         recv = jax.lax.all_to_all(buf, "pe", 0, 0, tiled=True)
@@ -114,9 +137,7 @@ def build_padded(mesh: Mesh, n_dev: int, bucket_width: int, cap: int):
         flat = recv.reshape(-1)
         return jax.lax.sort(flat), recv_counts
 
-    return jax.jit(
-        jax.shard_map(local, mesh=mesh, in_specs=P("pe"), out_specs=(P("pe"), P("pe")))
-    )
+    return jax.jit(_shard_map(local, mesh, P("pe"), (P("pe"), P("pe"))))
 
 
 def main() -> int:

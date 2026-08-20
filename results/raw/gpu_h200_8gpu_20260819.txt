@@ -1,0 +1,60 @@
+a3-ultragpu-8g, 8 x H200, us-east4-b, 2026-08-19
+NVSHMEM from libnvshmem3-cuda-12, CUDA 12.9, driver 580.173.02
+nvshmrun -n 8 ./isx_nvshmem <keys_per_pe> 1
+NVSHMEM_SYMMETRIC_SIZE=16G, then 32G for the last row
+
+  total keys    : 268435456  (2.15 GB)|  time to solution    : 0.033 s|    bucket    0.026|    exchange  0.004|    radix     0.002|  aggregate rate      : 65.05 GB/s|  verification        : PASSED|
+  total keys    : 1073741824  (8.59 GB)|  time to solution    : 0.130 s|    bucket    0.105|    exchange  0.015|    radix     0.008|  aggregate rate      : 66.19 GB/s|  verification        : PASSED|
+  total keys    : 4294967296  (34.36 GB)|  time to solution    : 0.513 s|    bucket    0.422|    exchange  0.055|    radix     0.033|  aggregate rate      : 66.96 GB/s|  verification        : PASSED|
+  total keys    : 17179869184  (137.44 GB)|  time to solution    : 2.047 s|    bucket    1.686|    exchange  0.215|    radix     0.131|  aggregate rate      : 67.15 GB/s|  verification        : PASSED|
+  total keys    : 68719476736  (549.76 GB)|  <no result, exceeds 8 x 141 GB HBM at the 2.02x footprint>
+
+
+--- fabric, host to host, one NIC of eight ---
+ib_write_bw -d rocep145s0 -x 3 -F <peer>
+
+ local address: LID 0000 QPN 0x0351 PSN 0x42de5e RKey 0x02080a VAddr 0x0071edce868000
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:200:00:02
+ remote address: LID 0000 QPN 0x0351 PSN 0x83aadb RKey 0x02060a VAddr 0x0077d232041000
+ GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:200:00:03
+ #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]
+ 65536      5000             45368.13            45016.05           0.720257
+
+
+--- GPU memory registration, tools/dmabuf_reg_test.c ---
+cudaMalloc: ok  ptr=0x7abbcbe00000
+cuMemGetHandleForAddressRange(DMA_BUF_FD): 0  fd=64
+ib devices: 8
+ibv_reg_dmabuf_mr  on rocep145s0: SUCCESS (errno=0)
+ibv_reg_mr (peermem) on rocep145s0: FAILED (errno=14)
+
+$ sudo modprobe nvidia_peermem
+modprobe: ERROR: could not insert 'nvidia_peermem': Invalid argument
+$ find /lib/modules/$(uname -r) -name 'nvidia*peermem*'
+/lib/modules/6.8.0-1066-gcp/kernel/nvidia-580srv-open/nvidia-peermem.ko
+
+
+--- GID table, rocep145s0 port 1 ---
+max_mtu: 4096 (5)   active_mtu: 4096 (5)   link_layer: Ethernet
+GID[  0]: fe80:0000:0000:0000:182e:cfff:fea5:cb01, RoCE v1
+GID[  1]: fe80::182e:cfff:fea5:cb01, RoCE v2
+GID[  2]: 0000:0000:0000:0000:0000:ffff:0ac8:0002, RoCE v1
+GID[  3]: ::ffff:10.200.0.2, RoCE v2
+
+
+--- NVSHMEM multi-node, 2 nodes x 8 GPUs ---
+ibrc, NVSHMEM_IB_GID_INDEX unset:
+  ibrc.cpp:1253 ibv_poll_cq failed, completion status: 5 (work request flushed error)
+  ibrc.cpp:1278 progress_send failed
+  quiet.cpp:55  nvshmem_quiet() failed
+
+ibrc, NVSHMEM_IB_GID_INDEX=3 (flush errors gone, still fails):
+  transport_ib_common.cpp:562 progress_send failed, outstanding_count: 0
+  transport_ib_common.cpp:617 check_poll failed
+
+ibgda:
+  WARN: cudaHostRegister with IoMemory failed with error=800
+  WARN: ibgda_nic_mem_gpu_map failed
+  transport.cpp:276 init failed for transport: IBGDA
+
+nvshmem-info -a | grep -ic dmabuf  ->  0

@@ -12,33 +12,55 @@ estimates. Whoever gets the capacity should not have to re-derive any of this.
 | GB300 memory per node | 2,076 GB | 1,116 GB HBM + 960 GB Grace, coherent |
 | GB200 memory per node | 1,628 GB | 744 GB HBM + 884 GB Grace |
 | H4D aggregate rate | 1.51 GB/s on 2 nodes | flat across a 64x data range |
-| GPU aggregate rate | 12.61 GB/s on 2 A100 | flat across a 16x data range |
+| GPU aggregate rate | 67.15 GB/s on 8 H200 | flat across a 64x data range |
 
 An endpoint is one OpenSHMEM PE on H4D and one GPU on GB200 and GB300.
 
 ## Node counts
 
 Keys per node is `usable / 2.02`. Nodes is the larger of the memory requirement and the
-endpoint requirement.
+endpoint requirement. A4X capacity is allocated in fixed 18-node NVLink domains, so both
+A4X rows round up to a multiple of 18.
 
 | machine | keys/node | 1 PB | 100 TB | endpoints at the 1 PB count |
 |---|---:|---:|---:|---:|
 | `h4d-highmem-192` | 713 GB | 1,403 | 140 | 44,896 PE |
-| `a4x-maxgpu-4g` (GB300) | 1,027 GB | 1,024 | 102 | 4,096 GPU |
-| `a4x-highgpu-4g` (GB200) | 806 GB | 1,241 | 124 | 4,964 GPU |
+| `a4x-maxgpu-4g` (GB300) | 1,027 GB | 1,026 | 108 | 4,104 GPU |
+| `a4x-highgpu-4g` (GB200) | 806 GB | 1,242 | 126 | 4,968 GPU |
 
-GB300 at 1 PB is bound by the endpoint requirement rather than by memory: 1,024 nodes
-gives 4,096 GPUs and 2.13 PB against the 2.02 PB needed.
+GB300 at 1 PB is bound by the endpoint requirement rather than by memory: 1,026 nodes is
+57 NVL72 domains, 4,104 GPUs, and 2.13 PB against the 2.02 PB needed.
+
+## Topology
+
+Cluster Director exposes three levels: a sub-block is one rack behind a single top-of-rack
+switch, one hop; a block is sub-blocks on non-blocking fabric, at most two hops; a cluster
+is blocks. It publishes that hierarchy to Slurm and GKE, and a reservation is what makes it
+visible.
+
+Request placement with the capacity, not after.
+
+| machine | mechanism | limit |
+|---|---|---:|
+| A4X, A4X Max | group placement, `--collocation=collocated --gpu-topology=1x72` | one NVL72 domain per policy |
+| A3 Ultra | workload policy, `maxTopologyDistance=1` (sub-block) | 22 instances |
+| A3 Ultra | workload policy, `maxTopologyDistance=2` (block) | 256 instances |
+| H4D | Compute Engine packs instances to minimise hops | — |
+
+This matters for the GB300 exchange. NVLink spans 72 GPUs, so at 4,104 endpoints 56/57 of
+the all-to-all leaves its domain. Domain-aware bucketing needs the topology, and Cluster
+Director is where it comes from.
 
 ## Against available capacity
 
-"Free" is the largest single-zone unallocated pool.
+Cloud RDMA and NVLink are both intra-zone, so the whole job lands in one zone and the
+comparison is against that zone's unallocated pool.
 
-| machine | free | 1 PB | 100 TB |
-|---|---:|---|---|
-| H4D | 562 | **impossible**, needs 2.5x what exists free | fits, 25% of pool |
-| GB300 | 6,814 | fits, 15% of pool | fits, 1.5% |
-| GB200 | 1,082 | short 1.1x | fits, 11% |
+| machine | 1 PB | 100 TB |
+|---|---|---|
+| H4D | **impossible**, several times the best zone's free pool | fits |
+| GB300 | fits, comfortably | fits |
+| GB200 | just short | fits |
 
 **H4D cannot reach 1 PB under any capacity grant.** 1,403 nodes in one zone exceeds the
 unallocated pool of every zone worldwide, and a grant does not create machines that are

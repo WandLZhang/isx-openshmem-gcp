@@ -132,6 +132,6 @@ provider: psm3
 
 ## What this does not change
 
-Capacity. 1 PB in memory needs about 1,403 H4D nodes and the largest single-zone free pool
-is 562, so the full target stays out of reach on H4D at any provider. See the scale table
-in the root README.
+Capacity. 1 PB in memory needs about 1,403 H4D nodes in one zone, which is several times
+the unallocated pool of the best zone, so the full target stays out of reach on H4D at any
+provider. See the scale table in the root README.

@@ -13,21 +13,30 @@ memory, using one-sided RMA. MPI is out of scope.
 
 ## Results
 
-| | CPU, H4D | GPU, A100 | TPU, v6e |
+| | CPU, H4D | GPU, H200 | TPU, v6e |
 |---|---|---|---|
 | Model | OpenSHMEM over PSM3 | NVSHMEM over NVLink | `jax.lax.all_to_all` |
-| Largest validated | **1,099.5 GB**, 64 PEs | 8.59 GB, 2 GPUs | not run, see below |
-| Reproducibility | **20/20** at 64 PEs/node | 3/3 | — |
-| Aggregate rate | 1.50 GB/s | 12.61 GB/s | — |
-| Dominant phase | exchange, 89% | bucket, 80% | — |
+| Largest validated | **1,099.5 GB**, 64 PEs, 2 nodes | **137.4 GB**, 8 GPUs, 1 node | **12.9 GB**, 4 chips |
+| Reproducibility | **20/20** at 64 PEs/node | every run | every run, within 0.1% |
+| Aggregate rate | 1.50 GB/s | 67.15 GB/s | 0.25 GB/s |
+| Flat across | 16x data range | 64x data range | 6x data range |
+| Dominant phase | exchange, 89% | bucket, 82% | bucket, 97% |
 
-Both paths validate and weak-scale cleanly: H4D holds 1.50 GB/s across a 16x data range,
-the GPU 12.6 GB/s across 16x. H4D is interconnect-bound on 200 Gbps RoCE. The GPU path is
-bound by bucketing, with the exchange at 8% over NVLink.
+All three validate and weak-scale. H4D is interconnect-bound on 200 Gbps RoCE. The GPU and
+TPU paths are bound by bucketing, with their exchanges at 10% and 0.1%.
 
-The TPU implementation is written and its key generation corrected, but no slice was
-granted: 141 spot combinations across six accelerator types all returned
-`WAITING_FOR_RESOURCES`. See [results/tpu.md](results/tpu.md) for what to do instead.
+TPU is not responsive to the OpenSHMEM requirement, since there is no remote put. It
+answers one thing the others cannot: the ICI exchange runs at **200 GB/s** and is 0.1% of
+the step, so a TPU sort number that puts one timer around "exchange and bucket sorting" is
+reporting bucket time. Replacing the bucket scatter with a gather made it 9.0x faster.
+See [results/tpu.md](results/tpu.md).
+
+**Multi-node NVSHMEM does not work on Google Cloud RoCE with the packaged build.** The
+fabric is fine: `ib_write_bw` moves 45 GB/s host to host on one of eight NICs. GPU memory
+registration is the blocker. `ibv_reg_mr` on a device pointer fails with errno 14 because
+`nvidia_peermem` cannot insert against the inbox `ib_core`, while `ibv_reg_dmabuf_mr` on
+the same buffer succeeds and the packaged NVSHMEM has no dmabuf setting to reach it.
+Root cause, evidence and three fixes in [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
 
 ### The fabric provider decides everything on H4D
 
@@ -48,22 +57,27 @@ The three changes required to run SOS on PSM3 are in [results/h4d-psm3.md](resul
 ## Can the target be reached
 
 Peak resident memory is 2.02x the key array, measured. Usable memory per node is the total
-less about 48 GB for OS and symmetric heap. "Free" is the largest single-zone unallocated
-pool.
+less about 48 GB for OS and symmetric heap. Verdicts compare the node count against the
+unallocated pool of the best single zone, which Cloud RDMA and NVLink both require.
 
 | machine | mem/node | endpoints/node | 100%: 1 PB + 4,096 ep | 10%: 100 TB + 410 ep |
 |---|---:|---:|---|---|
-| `h4d-highmem-192` | 1,440 GB | 32 PE | **1,403 nodes vs 562 free — impossible** | 140 nodes — fits |
-| `a4x-maxgpu-4g` (GB300) | 2,076 GB | 4 GPU | **1,024 nodes vs 6,814 free — fits** | 102 nodes — fits |
-| `a4x-highgpu-4g` (GB200) | 1,628 GB | 4 GPU | 1,241 nodes vs 1,082 free — short 1.1x | 124 nodes — fits |
+| `h4d-highmem-192` | 1,440 GB | 32 PE | **1,403 nodes — impossible** | 140 nodes — fits |
+| `a4x-maxgpu-4g` (GB300) | 2,076 GB | 4 GPU | **1,026 nodes — fits** | 108 nodes — fits |
+| `a4x-highgpu-4g` (GB200) | 1,628 GB | 4 GPU | 1,242 nodes — just short | 126 nodes — fits |
+
+A4X capacity comes in fixed 18-node NVLink domains, so both A4X rows round up to a
+multiple of 18. 1,026 nodes is 57 domains and 4,104 GPU endpoints.
 
 **The full target is physically unreachable on H4D.** It needs 1,403 nodes in one zone and
 no zone holds that many unallocated anywhere. This is not a quota question, because a
 grant cannot produce machines that are already allocated. The largest H4D run on record is
 192 nodes.
 
-**GB300 is the only family where the full target fits**, at 1,024 nodes, about 15% of the
-free pool in the largest zone. GB200 misses by 17%.
+**GB300 is the only family where the full target fits**, at 1,026 nodes, comfortably inside
+one zone. GB200 is just short. A4X Max refuses Spot outright —
+`Preemptible VMs are not supported for this VM family` — so it needs a reservation, which
+is also what makes Cluster Director topology visible.
 
 **All three reach 10%.** On H4D, 100 TB needs 140 nodes for memory, and 140 nodes at 32 PEs
 per node gives 4,480 endpoints, so a 10% data run on H4D clears the *full* endpoint
@@ -111,8 +125,8 @@ dependencies that are easy to miss.
 ```bash
 bash deploy/gb300/build.sh                   # ARCH=sm_100 by default
 bash deploy/gb300/run.sh smoke               # one node, 4 GPUs, seconds
-bash deploy/gb300/run.sh 10                  # 102 nodes, 100 TB
-bash deploy/gb300/run.sh full                # 1024 nodes, 1 PB
+bash deploy/gb300/run.sh 10                  # 108 nodes, 100 TB
+bash deploy/gb300/run.sh full                # 1026 nodes, 1 PB
 ```
 
 ## What is not met
@@ -128,17 +142,22 @@ SOS startup.
 
 **Scale.** 1,099.5 GB validated against 1 PB, on two nodes. Reachable on GB300, not on H4D.
 
+**Multi-node NVSHMEM.** Fails on Google Cloud RoCE with the packaged build, root-caused to
+GPU memory registration. The fabric itself moves 45 GB/s host to host. Settle this on two
+nodes before any GB300 allocation, because it applies to every byte that leaves an NVL72
+domain.
+
 ## Layout
 
 ```
 src/cpu/          OpenSHMEM implementation, three exchange schedules
 src/gpu/          NVSHMEM implementation
-src/tpu/          JAX implementation
+src/tpu/          JAX implementation, plus a phase-split benchmark
 deploy/h4d/       provision, build and run on H4D
 deploy/gb300/     handoff package for a GB300 allocation
 docs/             architecture, porting notes, scale-out arithmetic
 results/          measurements, one file per topic; raw/ holds json and logs
-tools/            probes and a standalone reproducer
+tools/            probes, a standalone reproducer, and the dmabuf registration test
 tests/            single-PE shim for local correctness
 ```
 
@@ -148,9 +167,9 @@ tests/            single-PE shim for local correctness
 |---|---|
 | PSM3, and what it takes to run SOS on it | `results/h4d-psm3.md` |
 | The `ofi_rxm` connection limit | `results/rxm-connection-limit.md` |
-| GPU validation on A100 | `results/gpu-nvshmem.md` |
+| GPU on H200 and A100, and the multi-node blocker | `results/gpu-nvshmem.md` |
 | Adaptive routing evidence | `results/adaptive-routing.md` |
-| TPU status and how to get a measurement | `results/tpu.md` |
+| TPU: ICI at 200 GB/s, and a 9x bucket fix | `results/tpu.md` |
 | Operational readiness, six tests | `results/operations.md` |
 | Scaling to a petabyte | `docs/scale-out.md` |
 | Porting ISx to 64 bits | `docs/porting.md` |

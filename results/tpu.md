@@ -1,68 +1,105 @@
 # TPU
 
-Implementation written and corrected. No slice granted, so nothing is measured.
+`v6e-4`, 4 chips, us-east5-a, JAX 0.6.2. `src/tpu/isx_jax.py`.
 
-## What the code does
+TPU has no PGAS. There is no remote put, so the exchange is `jax.lax.all_to_all`, a
+collective the compiler schedules. This path is not responsive to the OpenSHMEM
+requirement. It is here to answer one question the CPU and GPU paths cannot: what does the
+collective model cost on irregular data.
 
-`src/tpu/isx_jax.py` runs the three ISx phases with `jax.lax.all_to_all` for the exchange.
-It is a compiler-driven collective rather than PGAS, so it does not satisfy the study's
-programming-model requirement. It exists to compare tensor hardware against the two
-OpenSHMEM paths.
+## Getting a slice
 
-Key generation was fixed on 2026-08-19. It drew the whole `n_dev * per_dev` array in one
-call and let `device_put` scatter it, which is not ISx phase 1 and caps the dataset at
-what one chip's HBM holds. It now generates inside `shard_map` with `jax.random.fold_in`
-per device index, so each device draws its own stream from one seed and nothing crosses
-the interconnect during generation. Deterministic across runs, which the study requires.
+Spot did not work. 141 combinations across six accelerator types returned
+`WAITING_FOR_RESOURCES` and none converted. On-demand queued resources did: of 7 submitted,
+2 landed, both v6e in us-east5-a. Submit on-demand queued resources and wait, rather than
+spraying Spot.
 
-**Untested since that change.** The v5e used for the earlier probe is no longer
-provisioned.
+## Result
 
-## Capacity attempt
+Every run validated: keys land in the right device's range, each device's output is
+ordered, and no keys are lost.
 
-141 combinations, spot, across six accelerator types and every zone offering each:
+| total | per chip | time | rate | verification |
+|---:|---:|---:|---:|---|
+| 0.54 GB | 0.13 GB | 425 ms | 1.26 GB/s | PASSED |
+| 2.15 GB | 0.54 GB | 8,583 ms | 0.25 GB/s | PASSED |
+| 6.44 GB | 1.61 GB | 26,043 ms | 0.25 GB/s | PASSED |
+| **12.88 GB** | **3.22 GB** | 52,540 ms | 0.25 GB/s | PASSED |
 
-| type | zones tried |
+Flat at 0.25 GB/s across a 6x range. Repeat runs land within 0.1% of each other, so the
+timing is stable.
+
+25.77 GB does not fit. The padded buffer is `n_dev * cap * 8` bytes per chip and at 1.3x
+slack that is 8.4 GB, held twice for send and receive, against 32 GB of HBM per chip.
+
+## Where the time goes
+
+`src/tpu/isx_jax_phases.py` times each phase in its own `jit`. Fusion across boundaries is
+lost so the parts do not add to the whole, but the ratio is the answer. At 16.8M keys per
+chip:
+
+| phase | seconds | share |
+|---|---:|---:|
+| generate | 0.018 | 0.6% |
+| bucket | 3.245 | **97.4%** |
+| exchange | 0.003 | 0.1% |
+| sort | 0.064 | 1.9% |
+
+**The ICI exchange moves 0.70 GB at 200 GB/s and is 0.1% of the step.** Local bucketing is
+everything else.
+
+This matters for reading other TPU sort numbers. A report that puts one timer around
+"exchange and bucket sorting" is almost entirely reporting bucket time, and says nothing
+about ICI.
+
+## Making the bucket cheap
+
+The first implementation sorted an array of destinations with `argsort`, then scattered
+each key into a `(n_dev, cap)` buffer. TPU has no fast scatter.
+
+In ISx the destination is `key // bucket_width`, so it is the top bits of the key. Sorting
+the keys groups them by destination as a side effect. The bucket boundaries are then a
+`searchsorted` on the edges, and placement becomes a gather.
+
+| bucket | 16.8M keys/chip |
 |---|---:|
-| `v6e-4`, `v6e-8`, `v6e-16` | 20 each |
-| `v5litepod-4`, `-8`, `-16` | 27 each |
+| `argsort` on destinations, then scatter | 3.245 s |
+| `sort` on keys, then gather | **0.362 s** |
 
-Every one returned `WAITING_FOR_RESOURCES`. None granted. The run was stopped during the
-spot pass and did not reach the on-demand pass.
+9.0x, with the same keys out, checked. End to end that is 4,754 ms to 425 ms at 0.54 GB and
+27,951 ms to 8,583 ms at 2.15 GB. The gain shrinks with size because the final sort of the
+padded receive buffer grows.
 
-## Why spot was the wrong mode
+## Two things to know before running this
 
-Stanford's `create_persistent_tpu.sh` records the reason directly: *"measured v6e Spot
-survival was about an hour per slice"*, which is why their persistent development box is
-an **on-demand queued resource** rather than spot. Building the hunt on spot alone
-repeated a mode already documented as unreliable.
+**`jax.shard_map` rejects the code without `check_vma=False`.** From JAX 0.6, comparing a
+device-varying array against a replicated one raises `Primitive le_to requires varying
+manual axes to match`. `jnp.searchsorted` against `jnp.arange(n_dev)` does that. The
+comparison is well defined, so turn the check off rather than materialise a varying copy of
+every constant. `_shard_map` in both scripts does this and falls back for older JAX.
 
-TPUs are obtainable in this org. A v6e-8 is live in `wz-stanford-hie-lab` at
-`southamerica-west1-a` as an on-demand QR.
+**Generate per device.** A single global `jax.random.randint` followed by `device_put` is a
+one-device operation plus a broadcast, and it caps the dataset at one chip's HBM. Seed each
+device with `jax.random.fold_in` inside `shard_map`.
 
-## To get a result
+## Against the success criteria
 
-In order of cost:
+| criterion | status |
+|---|---|
+| Correctness | met, 4 sizes |
+| Reproducibility | met, repeat runs within 0.1% |
+| Performance stability | met, flat 0.25 GB/s over 6x |
+| Scale | 12.88 GB of 1 PB, on 4 chips |
+| OpenSHMEM one-sided | **not met, and not meetable**. TPU has no PGAS |
 
-1. **On-demand queued resource, small slice.** `v6e-4` is enough to verify the key
-   generation fix and separate exchange from sort. Use
-   `stanford/brian-hie/evo-google-cloud/infra/capacity/spray_tpu_slices.sh`, which loops
-   rather than spraying once, because a spot grant failure is a point-in-time answer.
-2. **Borrow the Stanford slice.** It is idle between sessions and already on the right
-   runtime, `v2-alpha-tpuv6e`. The generic `tpu-ubuntu2204-base` yields a node with no TPU
-   access daemon on which `libtpu` never initialises.
-3. **Ask the AI ninja team.** They are already running a JAX ISx variant on v7 for this
-   engagement.
+## What a larger slice would answer
 
-## The measurement worth taking
+The two open questions both need more chips, not more time.
 
-A colleague's v6e run reports 122.6 s for a phase labelled "ICI Exchange & Bucket
-Sorting", one timer over two phases, and reads 0.76 GB/s off it as an ICI figure.
-
-Two pieces of evidence say that number is the sort, not the network. Probe B measured
-`jax.lax.all_to_all` moving uint64 over ICI at **175 GB/s** on four v5e chips, 230x the
-reported figure. And on the GPU path, where the same two phases are timed separately, they
-split **91% sorting to 8% exchange**.
-
-`src/tpu/isx_jax.py` already separates generate, bucket, exchange and sort. One run at
-about 6 GB per chip, matching that per-chip size, settles it.
+1. **Does the exchange stay at 200 GB/s past one host?** 4 chips share a host. ICI between
+   hosts is the number that matters and this cannot see it.
+2. **Does padding stop being affordable?** `cap` is `per_dev / n_dev * slack`, so the
+   buffer per chip shrinks as chips grow, but the number of destinations rises. Ragged
+   `all_to_all` is available in this JAX and `isx_jax.py` detects it. Comparing padded
+   against ragged at 64 or 256 chips is the measurement that says what the collective model
+   costs on irregular data.

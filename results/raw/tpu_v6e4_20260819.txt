@@ -1,0 +1,69 @@
+v6e-4, 4 chips, us-east5-a, on-demand queued resource, 2026-08-19
+JAX 0.6.2, device kind "TPU v6 lite"
+python isx_jax.py --keys-per-device K --iterations 3
+
+--- argsort + scatter bucket (before) ---
+  total keys    : 67,108,864  (0.54 GB)
+  pad capacity  : 5,452,595 per destination (slack 1.3)
+  ragged a2a    : available
+  iter 0 (burn-in): 64763.2 ms
+  iter 1: 4757.1 ms
+  iter 2: 4754.5 ms
+  iter 3: 4757.5 ms
+  time (best)   : 4754.5 ms
+  time (mean)   : 4756.4 ms
+  rate          : 0.11 GB/s
+  ordered       : True
+  keys conserved: True (67,108,864 of 67,108,864)
+  bucket overflow: False
+  VERIFICATION  : PASSED
+
+  total keys    : 268,435,456  (2.15 GB)
+  pad capacity  : 21,810,380 per destination (slack 1.3)
+  iter 0 (burn-in): 92874.2 ms
+  iter 1: 27951.3 ms
+  iter 2: 27985.9 ms
+  iter 3: 27950.9 ms
+  time (best)   : 27950.9 ms
+  time (mean)   : 27962.7 ms
+  rate          : 0.08 GB/s
+  keys conserved: True (268,435,456 of 268,435,456)
+  VERIFICATION  : PASSED
+
+  total keys    : 805,306,368  (6.44 GB)
+  time (best)   : 84128.1 ms
+  rate          : 0.08 GB/s
+  VERIFICATION  : PASSED
+
+
+--- sort + gather bucket (after) ---
+  total keys    : 67,108,864  (0.54 GB)      time (best): 425.1 ms    rate: 1.26 GB/s   PASSED
+  total keys    : 268,435,456  (2.15 GB)     time (best): 8583.0 ms   rate: 0.25 GB/s   PASSED
+  total keys    : 805,306,368  (6.44 GB)     time (best): 26042.8 ms  rate: 0.25 GB/s   PASSED
+    ordered: True   keys conserved: True (805,306,368 of 805,306,368)   bucket overflow: False
+  total keys    : 1,610,612,736  (12.88 GB)  time (best): 52540.1 ms  rate: 0.25 GB/s   PASSED
+    ordered: True   keys conserved: True (1,610,612,736 of 1,610,612,736)   bucket overflow: False
+  total keys    : 3,221,225,472  (25.77 GB)
+    pad capacity  : 261,724,569 per destination (slack 1.3)
+    iter 0 (burn-in): 176953.6 ms
+    <failed after burn-in: padded buffers exceed 32 GB HBM per chip>
+
+
+--- phase split, isx_jax_phases.py, 16,777,216 keys/device (0.54 GB) ---
+devices       : 4 x TPU v6 lite
+phase         seconds    share
+generate        0.018     0.6%
+bucket          3.245    97.4%
+exchange        0.003     0.1%
+sort            0.064     1.9%
+sum             3.331
+exchange moves 0.70 GB at 199.8 GB/s   (200.2 GB/s on a repeat)
+
+bucket, argsort+scatter : 3.245 s
+bucket, sort+gather     : 0.362 s  (9.0x faster)
+same keys out           : True
+
+
+--- JAX 0.6 shard_map, before check_vma=False ---
+ValueError: Primitive le_to requires varying manual axes to match, but got
+[frozenset(), frozenset({'pe'})]

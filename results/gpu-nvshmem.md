@@ -1,60 +1,115 @@
-# ISx-NVSHMEM on 2 x A100, validated
+# GPU: NVSHMEM
 
-2026-08-19. `a2-highgpu-2g`, two A100-SXM4-40GB connected by **NV12** (12 NVLink lanes),
-NVSHMEM 3.7.2, CUDA 12.9, `NVSHMEM_REMOTE_TRANSPORT=none` so all traffic is NVLink.
+Two machines. `a2-highgpu-2g` (2 x A100, NVLink) and `a3-ultragpu-8g` (8 x H200, NVLink
+plus 8 x ConnectX-7 RoCE NICs) in us-east4-b.
 
-One PE per GPU. Verification passed on every run.
+## Single node
 
-| keys/PE | total | time | generate | bucket | exchange | radix | rate |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 4,194,304 | 0.07 GB | 0.006 s | 0.000 | 0.004 | 0.001 | 0.001 | 11.54 GB/s |
-| 33,554,432 | 0.54 GB | 0.043 s | 0.000 | 0.034 | 0.004 | 0.005 | 12.46 GB/s |
-| 268,435,456 | 4.29 GB | 0.341 s | 0.003 | 0.274 | 0.029 | 0.035 | 12.61 GB/s |
-| 536,870,912 | 8.59 GB | 0.681 s | 0.006 | 0.548 | 0.057 | 0.070 | 12.61 GB/s |
+`src/gpu/isx_nvshmem.cu`, one PE per GPU, every run validated.
 
-## Against the H4D result at the same key count
+| GPUs | total | time | bucket | exchange | radix | rate |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2 x A100 | 8.59 GB | 0.68 s | 80% | 8% | 10% | 12.61 GB/s |
+| 8 x H200 | 2.15 GB | 0.033 s | 0.026 | 0.004 | 0.002 | 65.05 GB/s |
+| 8 x H200 | 8.59 GB | 0.130 s | 0.105 | 0.015 | 0.008 | 66.19 GB/s |
+| 8 x H200 | 34.36 GB | 0.513 s | 0.422 | 0.055 | 0.033 | 66.96 GB/s |
+| 8 x H200 | **137.44 GB** | 2.047 s | 1.686 | 0.215 | 0.131 | **67.15 GB/s** |
 
-The 8.59 GB row is 1,073,741,824 keys, which is the same key count as the largest
-repeatedly-validated H4D run.
+Rate holds at 67 GB/s across a 64x data range, so the implementation weak-scales inside a
+node. Bucketing is 82% of runtime and the exchange over NVLink is 10%, the reverse of H4D
+where the exchange is 89%.
 
-| | hardware | time | rate | validated |
-|---|---|---:|---:|---|
-| ISx64 / OpenSHMEM | 64 PEs on 2 x h4d-highmem-192 | 2.050 s | 4.19 GB/s | 2-3 of 5 |
-| **ISx-NVSHMEM** | **2 GPUs on 1 a2-highgpu-2g** | **0.681 s** | **12.61 GB/s** | **3 of 3** |
+Bucketing is a full `SortPairs` over (destination, key). The exchange needs keys grouped
+rather than sorted within a group, so a partition would be cheaper. Correctness came
+first, and this is the first thing to change if single-node time matters.
 
-Two A100s beat 64 CPU processes by 3x on time, on a part two generations behind GB300,
-and passed every attempt where the H4D configuration passes fewer than half.
+## Multi-node does not work with packaged NVSHMEM
 
-## The exchange is not the cost
+Two `a3-ultragpu-8g`, 16 GPUs, on a VPC built from the `us-east4-b-vpc-roce` network
+profile with 8 MRDMA NICs per node.
 
-| phase | share of runtime at 8.59 GB |
-|---|---:|
-| bucket (CUB `SortPairs` by destination) | **80%** |
-| radix (CUB `SortKeys`) | 10% |
-| exchange (`nvshmem_uint64_put_nbi`) | **8%** |
-| generate | 1% |
+The fabric is fine. The GPU memory registration is not.
 
-The exchange moves 4.29 GB in 0.057 s, which is about 75 GB/s and consistent with NVLink.
-Sorting work, meaning bucket plus radix together, is 91% of the runtime.
+### The fabric works
 
-**This bears directly on the TPU result** reported at 122.6 s for a phase labelled "ICI
-Exchange & Bucket Sorting". That label puts one timer over both, and on this hardware the
-same two phases split 91/8 in favour of sorting. The reasonable reading is that the TPU
-number is dominated by the sort rather than by the interconnect.
+`ib_write_bw` host to host, one NIC of eight, GID index 3:
 
-## Weak scaling
+```
+ #bytes   #iterations  BW peak[MB/sec]  BW average[MB/sec]  MsgRate[Mpps]
+ 65536    5000         45368.13         45016.05            0.720257
+```
 
-12.46, 12.61, 12.61 GB/s across a 16x increase in data. Flat, which is what weak scaling
-should look like and what the H4D path never produced.
+45.0 GB/s, so 360 Gbps on one of eight NICs. All 8 HCAs report `PORT_ACTIVE` at MTU 4096.
+One-sided RDMA Write across nodes works.
 
-## The obvious optimisation
+GID index matters. NVSHMEM defaults to index 0, which is RoCE v1 link-local (`fe80::`) and
+cannot route across the RDMA subnet. Index 3 is RoCE v2 with the IPv4-mapped address.
 
-`bucket` is 80% of the time and it is a full `SortPairs` over (destination, key). The
-exchange needs keys grouped by destination, not sorted within a destination. A partition
-would do the same job for less. Not done, because correctness came first.
+| GID | type | address |
+|---:|---|---|
+| 0 | RoCE v1 | `fe80::182e:cfff:fea5:cb01` |
+| 1 | RoCE v2 | `fe80::182e:cfff:fea5:cb01` |
+| 2 | RoCE v1 | `::ffff:10.200.0.2` |
+| **3** | **RoCE v2** | **`::ffff:10.200.0.2`** |
 
-## What this does not show
+### Registering GPU memory is where it stops
 
-Nothing about GB300. A100 has 40 GB of HBM against GB300's 279 GB, no Grace coherent
-memory, and 12 NVLink lanes against an NVL72 domain. This validates the algorithm, the
-NVSHMEM calls and the one-slot window. Performance on GB300 is unmeasured.
+A 30-line probe, `tools/dmabuf_reg_test.c`, registers the same `cudaMalloc` buffer two ways
+on `rocep145s0`:
+
+```
+cudaMalloc: ok  ptr=0x7abbcbe00000
+cuMemGetHandleForAddressRange(DMA_BUF_FD): 0  fd=64
+ibv_reg_dmabuf_mr  on rocep145s0: SUCCESS (errno=0)
+ibv_reg_mr (peermem) on rocep145s0: FAILED (errno=14)
+```
+
+The NIC registers GPU memory through dmabuf and refuses the peer-memory path.
+`ibv_reg_mr` on a device pointer needs `nvidia_peermem`, and that module cannot load:
+
+```
+$ sudo modprobe nvidia_peermem
+modprobe: ERROR: could not insert 'nvidia_peermem': Invalid argument
+```
+
+The module file is present at
+`/lib/modules/6.8.0-1066-gcp/kernel/nvidia-580srv-open/nvidia-peermem.ko`. It fails to
+insert because it registers against `ib_register_peer_memory_client`, an API that exists in
+MOFED's `ib_core` and not in the inbox one this image ships.
+
+Both NVSHMEM remote transports fail on this, for different reasons:
+
+| transport | failure | why |
+|---|---|---|
+| `ibrc` | `ibv_poll_cq completion status 5`, then `progress_send failed` | registers the symmetric heap with `ibv_reg_mr`, which needs peermem |
+| `ibgda` | `cudaHostRegister with IoMemory failed with error=800` | maps the NIC doorbell into GPU BAR space, which virtualized MRDMA does not expose |
+
+The apt package `libnvshmem3-cuda-12` has no dmabuf setting at all: `nvshmem-info -a`
+matches zero entries for `dmabuf`. So the one registration path the hardware accepts is the
+one this build cannot ask for.
+
+### Three ways to fix it
+
+In order of effort.
+
+1. **Build NVSHMEM from source with dmabuf registration.** The hardware side already works,
+   proven above. This keeps the inbox driver stack and the standard image.
+2. **Use a MOFED image.** MOFED's `ib_core` carries the peer-memory API, `nvidia_peermem`
+   inserts, and stock `ibrc` then works unchanged.
+3. **Route the exchange through NCCL/gIB.** Google qualifies NCCL with the gIB plugin on
+   A3 Ultra and A4, and documents no NVSHMEM support on either. This is the supported path
+   and the furthest from the OpenSHMEM one-sided model the study requires, so it is a last
+   resort.
+
+This repeats the H4D lesson. The provider the platform qualifies is the one that works, and
+the stock default is not it.
+
+## What this means for GB300
+
+A4X Max has the same ConnectX RoCE fabric between NVL72 domains, so the same registration
+question applies to any traffic that leaves a domain. Settle it before the allocation
+starts: build the image, run `tools/dmabuf_reg_test.c`, and run a 2-node NVSHMEM job. That
+is an hour of work on 2 nodes and it derisks the whole run.
+
+Inside one NVL72 domain the transport is NVLink and none of this applies. The 8-GPU H200
+numbers above are the closest available evidence for intra-domain behaviour.
