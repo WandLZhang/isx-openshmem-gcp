@@ -16,10 +16,10 @@ memory, using one-sided RMA. MPI is out of scope.
 | | CPU, H4D | GPU, H200 | TPU, v6e |
 |---|---|---|---|
 | Model | OpenSHMEM over PSM3 | NVSHMEM over NVLink | `jax.lax.all_to_all` |
-| Largest validated | **1,099.5 GB**, 64 PEs, 2 nodes | **137.4 GB**, 8 GPUs, 1 node | **12.9 GB**, 4 chips |
-| Reproducibility | **20/20** at 64 PEs/node | every run | every run, within 0.1% |
-| Aggregate rate | 1.50 GB/s | 67.15 GB/s | 0.25 GB/s |
-| Flat across | 16x data range | 64x data range | 6x data range |
+| Largest validated | **1,400 GB**, 384 PEs, 2 nodes | **137.4 GB**, 8 GPUs, 1 node | **12.9 GB**, 4 chips |
+| Reproducibility | **20/20** at 192 PEs/node | every run | every run, within 0.1% |
+| Aggregate rate | 5.10 GB/s | 67.15 GB/s | 0.25 GB/s |
+| Flat across | top 3.4x of the range | 64x data range | 6x data range |
 | Dominant phase | exchange, 89% | bucket, 82% | bucket, 97% |
 
 All three validate and weak-scale. H4D is interconnect-bound on 200 Gbps RoCE. The GPU and
@@ -47,7 +47,9 @@ switching removes the failure that bounded the study.
 |---|---|---|
 | Round-0 growth, 16 → 64 PEs/node | 16.8x | **3.1x** |
 | Validated runs at 64 PEs/node | 7/20, 9/20 | **20/20** |
-| Largest validated dataset | 8.59 GB | **1,099.5 GB** |
+| Highest working density | 32 PEs/node | **192 PEs/node**, 20/20 |
+| Largest validated dataset | 8.59 GB | **1,400 GB** |
+| Aggregate rate | 1.50 GB/s | **5.10 GB/s** |
 
 `ofi_rxm` opens a connection per peer, so round-0 cost grows with
 `PEs_per_node × total_PEs` and stops making progress near 8,192 connections per node.
@@ -62,7 +64,7 @@ unallocated pool of the best single zone, which Cloud RDMA and NVLink both requi
 
 | machine | mem/node | endpoints/node | 100%: 1 PB + 4,096 ep | 10%: 100 TB + 410 ep |
 |---|---:|---:|---|---|
-| `h4d-highmem-192` | 1,440 GB | 32 PE | **1,403 nodes — impossible** | 140 nodes — fits |
+| `h4d-highmem-192` | 1,440 GB | 192 PE | **1,403 nodes — impossible** | 140 nodes — fits |
 | `a4x-maxgpu-4g` (GB300) | 2,076 GB | 4 GPU | **1,026 nodes — fits** | 108 nodes — fits |
 | `a4x-highgpu-4g` (GB200) | 1,628 GB | 4 GPU | 1,242 nodes — just short | 126 nodes — fits |
 
@@ -79,9 +81,14 @@ one zone. GB200 is just short. A4X Max refuses Spot outright —
 `Preemptible VMs are not supported for this VM family` — so it needs a reservation, which
 is also what makes Cluster Director topology visible.
 
-**All three reach 10%.** On H4D, 100 TB needs 140 nodes for memory, and 140 nodes at 32 PEs
-per node gives 4,480 endpoints, so a 10% data run on H4D clears the *full* endpoint
-requirement.
+**All three reach 10%.** On H4D, 100 TB needs 140 nodes for memory, and at 192 PEs per node
+that is 26,880 endpoints, so a 10% data run on H4D clears the *full* endpoint requirement
+several times over.
+
+**The endpoint criterion alone needs 22 H4D nodes.** 192 PEs per node validated 20/20, so
+4,096 endpoints is 22 nodes, which also holds 15.7 TB. That is a far smaller ask than the
+140 nodes the data target needs, and it is the cheapest way to demonstrate the endpoint
+count on a fabric that meets the one-sided requirement.
 
 One caveat throughout: free-pool size is not obtainability. H4D returned
 `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone the supply data showed as mostly free.
@@ -171,6 +178,7 @@ tests/            single-PE shim for local correctness
 | Adaptive routing evidence | `results/adaptive-routing.md` |
 | TPU: ICI at 200 GB/s, and a 9x bucket fix | `results/tpu.md` |
 | Operational readiness, six tests | `results/operations.md` |
+| **What a team with capacity does next** | `docs/handoff.md` |
 | Scaling to a petabyte | `docs/scale-out.md` |
 | Porting ISx to 64 bits | `docs/porting.md` |
 | Requirements verbatim, with status | `GOAL.md` |

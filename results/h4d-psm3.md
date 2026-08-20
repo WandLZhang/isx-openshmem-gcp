@@ -29,33 +29,58 @@ per-peer state to establish and nothing that grows with the square of the job.
 
 ## Reproducibility
 
-ISx64, 64 PEs per node, 8,388,608 keys per PE, 20 consecutive unattended runs.
+ISx64, 20 consecutive unattended runs at each shape.
 
-| provider | validated |
-|---|---|
-| `verbs;ofi_rxm` | 7/20 and 9/20 |
-| **`psm3`** | **20/20** |
+| provider | PEs/node | validated |
+|---|---:|---|
+| `verbs;ofi_rxm` | 64 | 7/20 and 9/20 |
+| `psm3` | 64 | **20/20** |
+| `psm3` | **192** | **20/20** |
+
+## Density
+
+192 PEs per node is one PE per vCPU, the full shape. It holds. 1M keys per PE, 3 runs each.
+
+| PEs/node | total PEs | validated | time |
+|---:|---:|---|---:|
+| 32 | 64 | 3/3 | 0.380 s |
+| 64 | 128 | 3/3 | 0.383 s |
+| 96 | 192 | 3/3 | 0.708 s |
+| 128 | 256 | 3/3 | 0.733 s |
+| **192** | **384** | **3/3** | 2.632 s |
+
+This changes the node count for the endpoint requirement. An endpoint is one PE, so 4,096
+endpoints needs **22 nodes** at this density rather than 128 at 32 PEs per node.
 
 ## Scale reached
 
-32 PEs per node on two nodes, `SHMEM_SYMMETRIC_SIZE=64G`. Every run validated.
+192 PEs per node on two nodes. Every run validated.
 
 | total | per node | time | exchange share | rate |
 |---:|---:|---:|---:|---:|
-| 68.7 GB | 34 GB | 44.7 s | 91% | 1.54 GB/s |
-| 274.9 GB | 137 GB | 178.3 s | 91% | 1.54 GB/s |
-| 549.8 GB | 275 GB | 364.2 s | 89% | 1.51 GB/s |
-| **1,099.5 GB** | **550 GB** | **730.7 s** | 89% | **1.50 GB/s** |
+| 25.8 GB | 13 GB | 6.8 s | 88% | 3.78 GB/s |
+| 103.1 GB | 52 GB | 22.4 s | 84% | 4.61 GB/s |
+| 412.3 GB | 206 GB | 84.3 s | 86% | 4.89 GB/s |
+| 1,000.0 GB | 500 GB | 194.0 s | 87% | 5.16 GB/s |
+| 1,200.0 GB | 600 GB | 235.8 s | 88% | 5.09 GB/s |
+| **1,400.0 GB** | **700 GB** | **274.5 s** | 88% | **5.10 GB/s** |
 
-Rate is flat across a 16x data range, so the exchange is bandwidth-limited rather than
-degrading with size. 550 GB of keys per node is 1,111 GB resident at the 2.02x footprint,
-77% of the 1,440 GB usable.
+1,400 GB is 1,414 GB resident at the 2.02x footprint against about 1,440 GB usable, so it
+is the ceiling for two nodes.
 
-The largest run on `verbs;ofi_rxm` was 8.59 GB. This is **128x** that, on the same two
-machines.
+Rate rises to 5.1 GB/s and holds there over the top 3.4x of the range. Density is worth
+**3.4x**: the same two machines ran 1.50 GB/s at 32 PEs per node.
 
-The exchange is 89% of runtime throughout. On 200 Gbps RoCE the network is the bound,
-which is the opposite of the GPU path where bucketing dominates and the exchange is 8%.
+| PEs/node | largest | rate |
+|---:|---:|---:|
+| 32 | 1,099.5 GB | 1.50 GB/s |
+| **192** | **1,400.0 GB** | **5.10 GB/s** |
+
+The largest run on `verbs;ofi_rxm` was 8.59 GB. This is **163x** that, at **3.4x** the rate,
+on the same two machines.
+
+The exchange is 84-88% of runtime throughout. On 200 Gbps RoCE the network is the bound,
+which is the opposite of the GPU path where bucketing dominates and the exchange is 10%.
 
 ## Three changes were needed
 
@@ -109,8 +134,18 @@ it fails earlier in heap init.
 export SHMEM_OFI_PROVIDER=psm3
 export PSM3_ALLOW_ROUTERS=1
 export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "$SLURM_JOB_ID")
-export SHMEM_SYMMETRIC_SIZE=8G
+export SHMEM_SYMMETRIC_SIZE=1G
+export SHMEM_BOOTSTRAP=PMI
 ```
+
+The windowed exchange holds one window slot per PE, so the symmetric heap is fixed at
+about 0.5 MB per PE and does not grow with the dataset. 1G is ample at 192 PEs per node;
+64G is wasteful.
+
+`oshrun` aborts with `could not find a launcher` on a bare VM, because SOS wraps whichever
+launcher `configure` found and a plain image has none. `mpich` supplies `mpiexec.hydra`,
+which speaks PMI-1. That is process launch only; the data path is OpenSHMEM over libfabric
+with no MPI in it.
 
 Every rank in a job must share one `PSM3_UUID`. Deriving it from `SLURM_JOB_ID` gives that
 for free and keeps concurrent jobs apart.
@@ -132,6 +167,7 @@ provider: psm3
 
 ## What this does not change
 
-Capacity. 1 PB in memory needs about 1,403 H4D nodes in one zone, which is several times
-the unallocated pool of the best zone, so the full target stays out of reach on H4D at any
-provider. See the scale table in the root README.
+Capacity for the petabyte. 1 PB in memory needs about 1,403 H4D nodes in one zone, which is
+several times the unallocated pool of the best zone, so the full data target stays out of
+reach on H4D at any provider. Density does not help, because that bound is memory rather
+than endpoints. See the scale table in the root README.

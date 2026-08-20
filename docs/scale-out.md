@@ -11,10 +11,11 @@ estimates. Whoever gets the capacity should not have to re-derive any of this.
 | H4D usable memory per node | 1,440 GB | 1,464 GB total, less OS and symmetric heap |
 | GB300 memory per node | 2,076 GB | 1,116 GB HBM + 960 GB Grace, coherent |
 | GB200 memory per node | 1,628 GB | 744 GB HBM + 884 GB Grace |
-| H4D aggregate rate | 1.51 GB/s on 2 nodes | flat across a 64x data range |
+| H4D aggregate rate | 5.10 GB/s on 2 nodes | 192 PEs/node, flat over the top 3.4x |
 | GPU aggregate rate | 67.15 GB/s on 8 H200 | flat across a 64x data range |
 
-An endpoint is one OpenSHMEM PE on H4D and one GPU on GB200 and GB300.
+An endpoint is one OpenSHMEM PE on H4D and one GPU on GB200 and GB300. H4D runs 192 PEs
+per node, one per vCPU, validated 20/20.
 
 ## Node counts
 
@@ -24,7 +25,7 @@ A4X rows round up to a multiple of 18.
 
 | machine | keys/node | 1 PB | 100 TB | endpoints at the 1 PB count |
 |---|---:|---:|---:|---:|
-| `h4d-highmem-192` | 713 GB | 1,403 | 140 | 44,896 PE |
+| `h4d-highmem-192` | 713 GB | 1,403 | 140 | 269,376 PE |
 | `a4x-maxgpu-4g` (GB300) | 1,027 GB | 1,026 | 108 | 4,104 GPU |
 | `a4x-highgpu-4g` (GB200) | 806 GB | 1,242 | 126 | 4,968 GPU |
 
@@ -69,10 +70,21 @@ already allocated. The largest H4D run on record is 192 nodes.
 Free-pool size is not obtainability. H4D returned `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone
 the supply data showed as mostly free, so confirm the machines separately from the quota.
 
+## Endpoints on their own
+
+4,096 endpoints does not need the data target. At 192 PEs per node it needs **22 nodes**,
+which also holds 15.7 TB. 22 nodes is 4,224 vCPU, a far smaller quota ask than the 26,880
+the 100 TB memory target needs.
+
+| goal | nodes | vCPU | endpoints | data held |
+|---|---:|---:|---:|---:|
+| 4,096 endpoints | 22 | 4,224 | 4,224 | 15.7 TB |
+| 100 TB | 140 | 26,880 | 26,880 | 100 TB |
+
 ## Run time
 
-At the measured 1.51 GB/s per two H4D nodes, 100 TB across 140 nodes projects to roughly
-16 minutes. The projection is linear in node count and unvalidated above two nodes; the
+At the measured 5.10 GB/s per two H4D nodes, 100 TB across 140 nodes projects to roughly
+5 minutes. The projection is linear in node count and unvalidated above two nodes; the
 all-to-all gets harder as endpoints grow, so treat it as a floor.
 
 The run being minutes rather than hours decides three things. Checkpointing is not worth
@@ -85,14 +97,15 @@ strategy. And the bill is dominated by how long machines are held rather than by
 export SHMEM_OFI_PROVIDER=psm3
 export PSM3_ALLOW_ROUTERS=1
 export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "$SLURM_JOB_ID")
-export SHMEM_SYMMETRIC_SIZE=64G
+export SHMEM_SYMMETRIC_SIZE=1G
+export SHMEM_BOOTSTRAP=PMI
 
-srun -N140 --ntasks-per-node=32 --mpi=pmi2 --export=ALL \
-     ./isx64win 22321428571 1 results/run
+srun -N140 --ntasks-per-node=192 --mpi=pmi2 --export=ALL \
+     ./isx64win 465029017 1 results/run
 ```
 
-`keys_per_pe` is `total_keys / (nodes * 32)`. 100 TB is 1.25e13 keys, so 140 nodes at 32
-PEs gives 2.79e9 per PE.
+`keys_per_pe` is `total_keys / (nodes * 192)`. 100 TB is 1.25e13 keys, so 140 nodes at 192
+PEs gives 4.65e8 per PE.
 
 SOS needs `deploy/h4d/sos-psm3-stx.patch` before it will start on PSM3. The blueprint
 node count is `h4d_cluster_size` in `deploy/h4d/isx-slurm-h4d.yaml`, and Cloud RDMA cannot

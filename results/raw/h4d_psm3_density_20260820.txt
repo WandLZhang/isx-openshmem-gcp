@@ -1,0 +1,46 @@
+2 x h4d-highmem-192, us-east1-b, 2026-08-20
+libfabric 2.6.0 --enable-psm3, SOS v1.5.3 + sos-psm3-stx.patch, PREFIX=/opt/isx
+Launcher: mpiexec.hydra (mpich), SHMEM_BOOTSTRAP=PMI. Launch only; the data path is
+OpenSHMEM over libfabric with no MPI in it.
+
+export FI_PROVIDER=psm3 SHMEM_OFI_PROVIDER=psm3
+export PSM3_ALLOW_ROUTERS=1
+export PSM3_UUID=<per job>
+export SHMEM_BOOTSTRAP=PMI
+
+--- PE density sweep, 1M keys/PE, 3 runs each ---
+   32/node (  64 PEs): 3/3 passed   0.380 s
+   64/node ( 128 PEs): 3/3 passed   0.383 s
+   96/node ( 192 PEs): 3/3 passed   0.708 s
+  128/node ( 256 PEs): 3/3 passed   0.733 s
+  192/node ( 384 PEs): 3/3 passed   2.632 s
+
+--- reproducibility at full density ---
+192 PEs/node, 384 PEs, 1M keys/PE, 20 consecutive unattended runs
+  validated: 20/20
+
+--- throughput at 192 PEs/node, SHMEM_SYMMETRIC_SIZE=1G (8G for the first three) ---
+  total keys : 3221225472    (25.770 GB)  rounds  2  time   6.816 s  exchange   5.998  rate 3.78 GB/s  PASSED
+  total keys : 12884901888  (103.079 GB)  rounds  6  time  22.369 s  exchange  18.860  rate 4.61 GB/s  PASSED
+  total keys : 51539607552  (412.317 GB)  rounds 22  time  84.261 s  exchange  72.862  rate 4.89 GB/s  PASSED
+  total keys : 124999999872 (1000.000 GB) rounds 53  time 193.958 s  exchange 169.484  rate 5.16 GB/s  PASSED
+  total keys : 150000000000 (1200.000 GB) rounds 63  time 235.818 s  exchange 207.264  rate 5.09 GB/s  PASSED
+  total keys : 174999999744 (1400.000 GB) rounds 73  time 274.542 s  exchange 240.616  rate 5.10 GB/s  PASSED
+
+1,400 GB is 700 GB of keys per node, 1,414 GB resident at the 2.02x footprint, against
+about 1,440 GB usable. That is the ceiling for two nodes.
+
+--- for comparison, the earlier 32 PEs/node numbers ---
+  68.7 GB    44.7 s   1.54 GB/s
+  274.9 GB  178.3 s   1.54 GB/s
+  549.8 GB  364.2 s   1.51 GB/s
+  1099.5 GB 730.7 s   1.50 GB/s
+
+--- notes ---
+oshrun aborts with "could not find a launcher" on a bare VM. SOS's oshrun wraps whatever
+launcher configure found, and there is none without Slurm or MPI installed. mpich supplies
+mpiexec.hydra, which speaks PMI-1, which is what SOS bootstraps against.
+
+Inter-node SSH: Rocky 8 with OS Login ignores ~/.ssh/authorized_keys. Add the launching
+node's public key to the OS Login profile instead:
+  gcloud compute os-login ssh-keys add --key-file=node.pub --ttl=6h
