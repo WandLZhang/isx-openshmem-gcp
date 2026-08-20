@@ -4,6 +4,35 @@ What this project's quota allows today, what was run against it, and the steps a
 capacity would follow. One section per family. Where a criterion cannot be met by any
 grant, that is stated with the reason.
 
+## Is each criterion physically reachable
+
+| | H4D, OpenSHMEM/PSM3 | TPU v6e, JAX | GB300, NVSHMEM |
+|---|---|---|---|
+| Correctness | met, 1,400 GB | met, 12.9 GB | met on 8 x H200, 1 node |
+| Reproducibility | met, 20/20 | met, within 0.1% | not run multi-node |
+| Performance stability | met, 5.10 GB/s flat | met, 0.25 GB/s flat | met on 1 node |
+| Scale, >1 PB | **no, supply.** 1,403 nodes in one zone, more than any zone holds free | **no, architecture.** The largest ICI slice that exists, TPU7x at 9,216 chips, holds 1.77 PB against 2.02 PB needed | **yes.** 1,026 nodes, fits one zone |
+| Scale, 4,096 endpoints | **yes, 22 nodes** | **no on v6e**, 256-chip cap. Yes on TPU7x | **yes**, 4,104 GPUs |
+| OpenSHMEM one-sided PGAS | met | **no, architecture.** No PGAS and no remote put | qualifies, blocked across nodes today |
+| Connectionless fabric | met, PSM3 | n/a | unproven |
+| Per-packet adaptive routing | **no, by design.** Falcon uses multipath subflows | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
+| Operational plausibility | met | met | package shipped, one blocker |
+
+**GB300 is the only path to the full target.** Nothing about 1 PB across 4,104 GPUs is
+impossible. Two things stand in front of it and neither is physics: `nvidia-gb300` is not
+allowlisted on this project, and multi-node NVSHMEM does not work on Cloud RoCE yet.
+
+**H4D reaches 10% and the full endpoint count, never the petabyte.** 1 PB needs 1,403 nodes
+in one zone because Cloud RDMA cannot cross zones, and that exceeds every zone's
+unallocated pool. That is a supply wall rather than an architectural one.
+
+**TPU fails on architecture twice, so no grant changes it.** No PGAS, so the one-sided
+requirement cannot be met in principle, and a job cannot span slices over ICI, so the
+largest slice that exists caps the data below the target.
+
+**Nothing meets per-packet adaptive routing.** Falcon uses multipath subflows by design,
+because per-packet spraying reorders packets and RoCE treats reordering as loss.
+
 ## What today's quota buys
 
 Measured against `wz-isx-benchmark`, 2026-08-19.
