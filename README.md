@@ -14,56 +14,11 @@ memory, using one-sided RMA. MPI is out of scope.
 Everything below is measured. `results/` holds the raw records and `GOAL.md` has the
 customer's requirements verbatim.
 
-**Contents.** [Results](#results) · [Can the criteria be reached](#can-the-criteria-be-reached) ·
+**Contents.** [Results](#results) · [What was measured](#what-was-measured) ·
 [How it was built](#how-it-was-built) · [Running it](#running-it) ·
 [Taking it to the finish line](#taking-it-to-the-finish-line) · [Layout](#layout)
 
 ## Results
-
-| | CPU, H4D | GPU, H200 | TPU, v6e |
-|---|---|---|---|
-| Model | OpenSHMEM over PSM3 | NVSHMEM over NVLink | `jax.lax.all_to_all` |
-| Largest validated | **1,400 GB**, 384 PEs, 2 nodes | **137.4 GB**, 8 GPUs, 1 node | **12.9 GB**, 4 chips |
-| Reproducibility | **20/20** at 192 PEs/node | every run | every run, within 0.1% |
-| Aggregate rate | 5.10 GB/s | 67.15 GB/s | 0.25 GB/s |
-| Flat across | top 3.4x of the range | 64x data range | 6x data range |
-| Dominant phase | exchange, 89% | bucket, 82% | bucket, 97% |
-
-All three validate and weak-scale. H4D is interconnect-bound on 200 Gbps RoCE. The GPU and
-TPU paths are bound by bucketing, with their exchanges at 10% and 0.1%.
-
-TPU is not responsive to the OpenSHMEM requirement, since there is no remote put. It
-answers one thing the others cannot: the ICI exchange runs at **200 GB/s** and is 0.1% of
-the step, so a TPU sort number that puts one timer around "exchange and bucket sorting" is
-reporting bucket time. Replacing the bucket scatter with a gather made it 9.0x faster.
-See [results/tpu.md](results/tpu.md).
-
-**Multi-node NVSHMEM does not work on Google Cloud RoCE with the packaged build.** The
-fabric is fine: `ib_write_bw` moves 45 GB/s host to host on one of eight NICs. GPU memory
-registration is the blocker. `ibv_reg_mr` on a device pointer fails with errno 14 because
-`nvidia_peermem` cannot insert against the inbox `ib_core`, while `ibv_reg_dmabuf_mr` on
-the same buffer succeeds and the packaged NVSHMEM has no dmabuf setting to reach it.
-Root cause, evidence and three fixes in [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
-
-### The fabric provider decides everything on H4D
-
-Earlier work here used `verbs;ofi_rxm`. PSM3 is the provider Google qualifies for H4D, and
-switching removes the failure that bounded the study.
-
-| | `verbs;ofi_rxm` | `psm3` |
-|---|---|---|
-| Round-0 growth, 16 → 64 PEs/node | 16.8x | **3.1x** |
-| Validated runs at 64 PEs/node | 7/20, 9/20 | **20/20** |
-| Highest working density | 32 PEs/node | **192 PEs/node**, 20/20 |
-| Largest validated dataset | 8.59 GB | **1,400 GB** |
-| Aggregate rate | 1.50 GB/s | **5.10 GB/s** |
-
-`ofi_rxm` opens a connection per peer, so round-0 cost grows with
-`PEs_per_node × total_PEs` and stops making progress near 8,192 connections per node.
-PSM3 implements no connection management, so nothing grows with the square of the job.
-The three changes required to run SOS on PSM3 are in [results/h4d-psm3.md](results/h4d-psm3.md).
-
-## Can the criteria be reached
 
 | | H4D, OpenSHMEM/PSM3 | TPU v6e, JAX | GB300, NVSHMEM |
 |---|---|---|---|
@@ -77,7 +32,7 @@ The three changes required to run SOS on PSM3 are in [results/h4d-psm3.md](resul
 | Per-packet adaptive routing | **no, by design** | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
 | Operational plausibility | met | met | package shipped, one blocker |
 
-Three different reasons sit behind the four "no" cells.
+Three different reasons sit behind the four "no" cells, and only one of them is permanent.
 
 **Supply.** H4D at 1 PB needs 1,403 nodes in one zone, because Cloud RDMA cannot cross
 zones, and that is more than any zone holds unallocated. The machines would work if they
@@ -135,6 +90,51 @@ Measured against the study project, 2026-08-20.
 Two of these are not quota problems. GB300 fails on an accelerator allowlist before quota
 is consulted. TPU has ample quota and no capacity, and its ceiling is slice size rather
 than supply.
+
+## What was measured
+
+| | CPU, H4D | GPU, H200 | TPU, v6e |
+|---|---|---|---|
+| Model | OpenSHMEM over PSM3 | NVSHMEM over NVLink | `jax.lax.all_to_all` |
+| Largest validated | **1,400 GB**, 384 PEs, 2 nodes | **137.4 GB**, 8 GPUs, 1 node | **12.9 GB**, 4 chips |
+| Reproducibility | **20/20** at 192 PEs/node | every run | every run, within 0.1% |
+| Aggregate rate | 5.10 GB/s | 67.15 GB/s | 0.25 GB/s |
+| Flat across | top 3.4x of the range | 64x data range | 6x data range |
+| Dominant phase | exchange, 89% | bucket, 82% | bucket, 97% |
+
+All three validate and weak-scale. H4D is interconnect-bound on 200 Gbps RoCE. The GPU and
+TPU paths are bound by bucketing, with their exchanges at 10% and 0.1%.
+
+TPU is not responsive to the OpenSHMEM requirement, since there is no remote put. It
+answers one thing the others cannot: the ICI exchange runs at **200 GB/s** and is 0.1% of
+the step, so a TPU sort number that puts one timer around "exchange and bucket sorting" is
+reporting bucket time. Replacing the bucket scatter with a gather made it 9.0x faster.
+See [results/tpu.md](results/tpu.md).
+
+**Multi-node NVSHMEM does not work on Google Cloud RoCE with the packaged build.** The
+fabric is fine: `ib_write_bw` moves 45 GB/s host to host on one of eight NICs. GPU memory
+registration is the blocker. `ibv_reg_mr` on a device pointer fails with errno 14 because
+`nvidia_peermem` cannot insert against the inbox `ib_core`, while `ibv_reg_dmabuf_mr` on
+the same buffer succeeds and the packaged NVSHMEM has no dmabuf setting to reach it.
+Root cause, evidence and three fixes in [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
+
+### The fabric provider decides everything on H4D
+
+Earlier work here used `verbs;ofi_rxm`. PSM3 is the provider Google qualifies for H4D, and
+switching removes the failure that bounded the study.
+
+| | `verbs;ofi_rxm` | `psm3` |
+|---|---|---|
+| Round-0 growth, 16 to 64 PEs/node | 16.8x | **3.1x** |
+| Validated runs at 64 PEs/node | 7/20, 9/20 | **20/20** |
+| Highest working density | 32 PEs/node | **192 PEs/node**, 20/20 |
+| Largest validated dataset | 8.59 GB | **1,400 GB** |
+| Aggregate rate | 1.50 GB/s | **5.10 GB/s** |
+
+`ofi_rxm` opens a connection per peer, so round-0 cost grows with
+`PEs_per_node x total_PEs` and stops making progress near 8,192 connections per node.
+PSM3 implements no connection management, so nothing grows with the square of the job.
+The three changes required to run SOS on PSM3 are in [results/h4d-psm3.md](results/h4d-psm3.md).
 
 ## How it was built
 
