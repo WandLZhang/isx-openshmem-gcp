@@ -48,8 +48,8 @@ Request placement with the capacity, not after.
 | A3 Ultra | workload policy, `maxTopologyDistance=2` (block) | 256 instances |
 | H4D | Compute Engine packs instances to minimise hops | — |
 
-NVLink spans 72 GPUs, so at 4,104 endpoints 56/57 of the all-to-all leaves its domain. Domain-aware bucketing needs the topology, and Cluster
-Director is where it comes from.
+NVLink spans 72 GPUs, so at 4,104 endpoints 56/57 of the all-to-all leaves its domain.
+Domain-aware bucketing needs the topology, and Cluster Director is where it comes from.
 
 ## Against available capacity
 

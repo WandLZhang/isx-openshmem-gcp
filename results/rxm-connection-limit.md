@@ -189,7 +189,8 @@ So the reproducer improves (4/7 → 6/7 at 32 PEs/node, 2/7 → 5/7 at 64) while
 not move at all. The two differ in
 several ways: ISx64 uses an 8 GB symmetric heap against the reproducer's 1 GB, issues
 `shmem_atomic_fetch_add` per destination, runs many more operations per exchange, and adds
-key generation and a local sort. Testing those one at a time, with `FI_VERBS_GID_IDX=1` set throughout, identifies the
+key generation and a local sort. Testing those one at a time, with `FI_VERBS_GID_IDX=1`
+set throughout, identifies the
 ingredient as **operation count**:
 
 | symmetric heap | rounds | puts per PE | completions |
@@ -258,7 +259,8 @@ mechanism before it was measured, which is a reasonable check on the diagnosis.
 So both settings that help the reproducer do nothing for the benchmark. Matching the
 operation count was not sufficient to make the reproducer model ISx64. What still differs:
 ISx64 issues a `shmem_atomic_fetch_add` per destination, its puts are variable-sized
-where the reproducer sends a fixed 256 KB, and it interleaves key generation and a radix sort between
+where the reproducer sends a fixed 256 KB, and it interleaves key generation and a radix
+sort between
 exchanges. One of those, not raw operation count, is what pins the benchmark.
 
 Note also the run-to-run spread at n=5: the same 32 PEs/node baseline measured 2/5 in one

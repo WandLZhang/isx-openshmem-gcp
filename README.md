@@ -43,8 +43,8 @@ met on any generation, and no grant changes that.
 A job cannot span slices over ICI, so slice size caps the data. v6e tops out at 256 chips
 and reaches neither target. **v5p reaches both the endpoint count and 100 TB**: 95 GiB per
 chip, a 16x16x16 slice is 4,096 chips, which matches the requirement, and it holds about
-207 TB of keys at the measured 2.02x footprint. 1 PB needs 2,020 TB resident against 1,900 TB in the largest
-TPU7x topology, a 6% miss that a footprint below 1.9x would close.
+207 TB of keys at the measured 2.02x footprint. 1 PB needs 2,020 TB resident against
+1,900 TB in the largest TPU7x topology, a 6% miss that a footprint below 1.9x would close.
 
 **Design.** Falcon uses multipath subflows rather than per-packet spraying, because
 per-packet routing reorders packets and RoCE treats reordering as loss. Zero out-of-order

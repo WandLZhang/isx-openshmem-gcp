@@ -178,6 +178,7 @@ throughput cost.
 
 ## Status
 
-Step 1 is done and measured. Steps 2 and 3 are not implemented. The single-slot-window finding applies whether or not the streaming
+Step 1 is done and measured. Steps 2 and 3 are not implemented. The single-slot-window
+finding applies whether or not the streaming
 lands. It reduces the symmetric heap 25,600x at the target shape and removes a step from
 the scale-out recipe.

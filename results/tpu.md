@@ -49,7 +49,8 @@ chip:
 everything else.
 
 A timer wrapped around the exchange and the local phases together, divided by the bytes
-moved, gives a figure labelled GB/s that is not an ICI measurement, because the exchange is a small fraction of what the timer covers.
+moved, gives a figure labelled GB/s that is not an ICI measurement, because the exchange is
+a small fraction of what the timer covers.
 Which local phase dominates depends on the implementation: bucketing here, the two full
 sorts in the reference implementation described in `notes/`.
 
