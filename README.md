@@ -160,10 +160,11 @@ Selecting on what the fabric must do rather than on the named hardware:
 
 h4d is the compliance path and a4x is the scale path.
 
-Capacity dashboards disagreed with real requests three times. What predicted obtainability
-was the ratio of schedulable to total hosts, not absolute pool size: zones above 90%
-granted, zones at 46-55% did not. On-demand in us-east1-b granted immediately while DWS
-Flex in that same zone reported exhausted, because they are separate inventory.
+Capacity reporting disagreed with real requests three times. Absolute pool size predicted
+nothing; how much of a zone was already committed predicted well. Confirm a zone by trying
+to create in it rather than by reading a number. On-demand in us-east1-b granted
+immediately while DWS Flex in that same zone reported exhausted, because they are separate
+inventory.
 
 Cloud RDMA is zone-locked. The Falcon network profile is per zone, so a retry elsewhere
 means rebuilding the RDMA VPC, the nodeset, the controller and the login node. The Falcon
