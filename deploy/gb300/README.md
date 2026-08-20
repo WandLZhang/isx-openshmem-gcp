@@ -66,13 +66,36 @@ comes from.
 
 `keys_per_gpu` is `total_keys / gpus`, where 1 PB is 1.25e14 keys and 100 TB is 1.25e13.
 
-## Capacity request
+## Three gates, in the order you hit them
 
-Ask for **1,026** (or 108) `a4x-maxgpu-4g-metal` in one zone, as a reservation. At the last
-check `us-east4-a` held the largest free pool and the full request was about 15% of it.
-`us-central1-b` and `us-east4-b` both offer the machine type.
+Tested 2026-08-19 against a project with no A4X entitlement. Expect the first gate before
+capacity is ever discussed.
 
-Request dense placement with the request, not after. A reservation is also what makes
+**1. Accelerator allowlist.** `a4x-maxgpu-4g-metal` appears in
+`gcloud compute machine-types list` for us-central1-b and us-east4-b, which is misleading.
+Creation fails on the accelerator, not the machine:
+
+```
+ERROR: Accelerator type 'nvidia-gb300' is not valid in container 'ZONE:2001/PROJECT:...'
+```
+
+`gcloud compute accelerator-types list --filter="zone:us-central1-b"` returned
+`nvidia-b200`, `nvidia-gb200`, `nvidia-h100-80gb`, `nvidia-h100-mega-80gb` and
+`nvidia-h200-141gb`, with no `nvidia-gb300`. The project needs the accelerator type
+allowlisted first. A machine type appearing in the list does not mean you can create it.
+
+`a4x-highgpu-4g` (GB200) passes this gate on the same project, so the two are entitled
+separately.
+
+**2. Provisioning model.** Spot is refused for the whole family, and on-demand A4X GB200
+returned `ZONE_RESOURCE_POOL_EXHAUSTED` in both us-central1-b and us-east4-b. This is a
+reservation, not an opportunistic grab.
+
+**3. Capacity and placement.** Ask for **1,026** (or 108) `a4x-maxgpu-4g-metal` in one
+zone, as a reservation. `us-east4-a` held the largest unallocated pool at the last check
+and the full request fits inside it comfortably.
+
+Request dense placement with the reservation, not after. A reservation is also what makes
 topology visible at all.
 
 ```bash

@@ -82,6 +82,32 @@ every constant. `_shard_map` in both scripts does this and falls back for older 
 one-device operation plus a broadcast, and it caps the dataset at one chip's HBM. Seed each
 device with `jax.random.fold_in` inside `shard_map`.
 
+## Can either target be reached on TPU
+
+A TPU slice is one ICI-connected unit and a job cannot span slices over ICI. So the ceiling
+is slice size, not supply, and no capacity grant moves it.
+
+| | v6e | TPU7x |
+|---|---:|---:|
+| HBM per chip | 32 GB | 192 GB |
+| Max chips per slice | 256 | 9,216 |
+| Raw HBM per slice | 8.2 TB | 1.77 PB |
+| Keys held, at the measured 3.2 GB/chip | 0.8 TB | 1.8 TB |
+| Keys held, at a 2.02x footprint | 4.1 TB | 876 TB |
+
+**Neither target is reachable on v6e.** 100 TB needs 121 full v6e-256 pods even at the raw
+HBM limit, and the largest slice is one pod.
+
+**On TPU7x, 100 TB fits and 1 PB does not.** 100 TB needs about 1,050 chips at a 2.02x
+footprint, inside a 2,048-chip slice, and 4,096 endpoints needs a slice at least that
+large, so both constraints are satisfied together. 1 PB needs 2.02 PB resident against
+1.77 PB of HBM in the largest slice that exists.
+
+Two caveats on the TPU7x row. The 2.02x footprint is the CPU implementation's, measured;
+this JAX version runs at about 3.2 GB per 32 GB chip because the padded exchange buffer is
+held twice. Ragged `all_to_all` is the fix and is available in this JAX, untested here.
+Nothing about TPU7x in this table is measured.
+
 ## Against the success criteria
 
 | criterion | status |
