@@ -1,8 +1,8 @@
 # Connection establishment and the connectionless alternative
 
-2026-08-15. This supersedes the ranked hypotheses in `corrections.md`. H1
-(`FI_DELIVERY_COMPLETE` not implemented) and H3 (TX queue exhaustion) are both wrong.
-The failure occurs during connection establishment.
+2026-08-15. `verbs;ofi_rxm` stops making progress above 32 PEs per node. The failure is in
+connection establishment. PSM3 does not have it, so this file explains a provider the
+study no longer uses and is kept for the mechanism.
 
 ## Round timings
 
@@ -61,7 +61,7 @@ Shared receive contexts (`FI_OFI_RXM_USE_SRX=1`) gave 0/5 alone and 0/5 with war
 ## The connectionless provider
 
 The requirement asks for a fabric with **connectionless semantics**. `verbs;ofi_rxm` is
-connection-oriented, and connection setup is exactly what fails. H4D does expose a
+connection-oriented, and connection setup is what fails. H4D does expose a
 connectionless provider:
 
 ```
@@ -118,7 +118,7 @@ A link-local GID has no route, so the UD path cannot build an address handle for
 peer, while the local one needs no resolution. Setting **`FI_VERBS_GID_IDX=1`** selects
 the routable GID and the AV insert succeeds.
 
-This is not specific to SOS. libfabric's own `fi_pingpong` reproduces it exactly:
+This is not specific to SOS. libfabric's own `fi_pingpong` reproduces it:
 
 ```
 $ fi_pingpong -p "verbs;ofi_rxd" -e rdm          # default GID index 0
@@ -272,7 +272,7 @@ connectionless semantics, not both:
 
 | provider | one-sided RMA + atomics to SOS | connectionless | usable |
 |---|---|---|---|
-| `verbs;ofi_rxm` | yes | **no**, RC connections | yes, but fails above ~32 PEs/node |
+| `verbs;ofi_rxm` | yes | **no**, RC connections | yes, but fails above 32 PEs/node |
 | `verbs;ofi_rxd` | messaging yes, RMA no | **yes**, UD | no, RMA hits the retry limit at 2 PEs |
 
 The requirement asks for both at once. The cause is the fabric and the software stack,

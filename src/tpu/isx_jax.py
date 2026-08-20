@@ -6,9 +6,9 @@ This is the second half of the comparison. `src/isx64` does the exchange with on
 over ICI, which is a collective: every device participates, the compiler schedules it,
 and no device reaches into another's memory.
 
-That difference is not cosmetic and it shows up in one specific place.
+It shows up in one place.
 
-ISx buckets are statistically even but never exactly even. Under PGAS that costs nothing,
+ISx buckets are statistically even but never perfectly even. Under PGAS that costs nothing,
 because each PE simply puts however many keys it happens to have. A collective needs
 every participant to agree on a shape before the compiler can emit it. So this
 implementation has to either
@@ -16,10 +16,10 @@ implementation has to either
   * pad every bucket to a common size, wasting bandwidth on the padding, or
   * use `ragged_all_to_all`, which carries per-device sizes.
 
-Both are implemented. `--exchange padded` is the portable baseline; `--exchange ragged`
-is the honest one and is used when the installed JAX has it. The gap between them is a
-real measurement of what the collective model costs on irregular data, which is the
-question the study is actually asking.
+Only the padded path is implemented. `HAS_RAGGED` reports whether the installed JAX
+carries `ragged_all_to_all`, and the run records it, but nothing calls it yet. Measuring
+padded against ragged at the same shape is what would price the collective model on
+irregular data, and it needs a slice bigger than 4 chips to be worth doing.
 
 Run on a TPU slice:
 

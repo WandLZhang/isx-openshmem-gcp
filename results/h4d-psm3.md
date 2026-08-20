@@ -142,6 +142,10 @@ The windowed exchange holds one window slot per PE, so the symmetric heap is fix
 about 0.5 MB per PE and does not grow with the dataset. 1G is ample at 192 PEs per node;
 64G is wasteful.
 
+`oshcc` embeds an RPATH that overrides `LD_LIBRARY_PATH`. Two SOS installs on one machine
+will silently load the wrong one, so confirm with `ldd` before trusting any comparison
+between builds.
+
 `oshrun` aborts with `could not find a launcher` on a bare VM, because SOS wraps whichever
 launcher `configure` found and a plain image has none. `mpich` supplies `mpiexec.hydra`,
 which speaks PMI-1. That is process launch only; the data path is OpenSHMEM over libfabric

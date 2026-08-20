@@ -3,8 +3,9 @@
 Measured 2026-08-15 on two `h4d-highmem-192-lssd` in `us-east1-b`, 32 PEs (16 per node).
 Implementation: `src/cpu/isx64_win.c`.
 
-This converts the petabyte target on H4D from "needs 37,500 nodes" to "needs about 700",
-which is inside the largest single-zone H4D pool. No new hardware, no GB200.
+Before this change the dataset lived in the symmetric heap, which caps at about 32 GB per
+node, so 1 PB needed about 37,500 nodes. Afterwards the heap holds one window slot per PE
+and the node count follows ordinary memory instead.
 
 ## The idea
 
@@ -52,12 +53,12 @@ With the heap out of the way, the limit is node RAM and the algorithm's footprin
 |---:|---:|---:|---|
 | 2.60x as implemented | 563 GB | 1,776 | too many |
 | 2.04x with recv slack 1.3 -> 1.02 | 718 GB | 1,393 | too many |
-| **1.02x** with in-place MSD radix and streamed send | **1,435 GB** | **697** | **fits** |
+| **1.02x** with in-place MSD radix and streamed send | **1,435 GB** | **697** | design target |
 
-For comparison, before this change: 870 nodes x 26.7 GB = 23.2 TB, and 1 PB needed about
-37,500 nodes, far beyond the available H4D fleet.
+The shipped footprint is 2.02x, which puts 1 PB at 1,403 nodes. The 1.02x row is a design
+target, not a measurement.
 
-Two further reductions get from 2.60x to 1.02x, and neither is exotic:
+Three further reductions get from 2.02x to 1.02x:
 
 1. **Receive slack 1.3 -> 1.02.** Keys are uniform, so the per-destination receive count
    concentrates as `1/sqrt(n)`. At 1e9 keys per PE the relative spread is about 3e-5;
@@ -70,26 +71,8 @@ Two further reductions get from 2.60x to 1.02x, and neither is exotic:
 
 ## Not addressed
 
-**Reproducibility.** Two of the three runs above needed a second attempt. The ~30%
-completion rate documented in `BLOCKER_reproducibility_20260814.md` is untouched by this
-change and is the more serious problem: at 700 nodes, a per-run failure probability that
-high makes a successful run essentially unreachable. This must be solved before scale is
-attempted, and it is not a memory problem.
+**Peak footprint.** 2.02x is what ships. The three reductions above are unimplemented and
+`docs/streamed-exchange.md` carries the design.
 
-**The 32 PEs/node retry wall.** Also untouched. At 697 nodes x 32 PEs it would give 22,304
-endpoints, comfortably past the 4,096 requirement, so it does not block the endpoint
-criterion. It does mean 192-vCPU nodes run at one sixth of their core count.
-
-**Capacity and quota.** 697 nodes in one zone needs `CPUS_PER_VM_FAMILY` of about 134,000
-and the machines to actually be free. The largest pool observed was 870 total with 396
-schedulable.
-
-## Honest summary
-
-The petabyte target on H4D was previously blocked by something that looked like a hardware
-limit and was in fact an artifact of putting the dataset in registered memory. That is now
-demonstrated fixed, at 381x decoupling with no bandwidth penalty and passing validation.
-
-Three things remain between here and 1 PB. Footprint work, which is well understood. A
-stability bug, which is not. And a capacity request. GB200 remains the lower-risk path, but
-it is no longer the only one.
+None of this changes the petabyte verdict for H4D. Even at 1.02x, 1 PB needs 697 nodes in
+one zone, which is still more than any zone holds unallocated.

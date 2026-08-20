@@ -57,10 +57,9 @@ ISx is a distributed parallel bucket sort on 64-bit unsigned integers (`uint64_t
 
 ---
 
-## Status, 2026-08-19
+## Status, 2026-08-20
 
-Measured on two `h4d-highmem-192` and two A100 with NVLink. Capacity figures are the
-largest single-zone unallocated pool.
+Measured on two `h4d-highmem-192`, eight H200 in one node, and four TPU v6e chips.
 
 | requirement | status |
 |---|---|
@@ -68,25 +67,25 @@ largest single-zone unallocated pool.
 | RDMA one-sided Get/Put/Atomics | **met.** Verified cross-node; the target posts no receive |
 | Connectionless fabric | **met in substance.** PSM3 implements no connection management |
 | Per-packet adaptive routing | **not met, and not achievable.** Falcon uses multipath subflows by design, because per-packet routing reorders and RoCE treats reordering as loss. Zero out-of-order arrivals measured |
-| Correctness | **met.** Validated to 1,099.5 GB, 137,438,953,472 keys |
-| Reproducibility | **met.** 20/20 at 64 PEs per node on PSM3 |
-| Performance stability | **met.** Three inflection points identified |
-| >= 4,096 endpoints | **not run, reachable.** 128 H4D nodes against 562 free, or 1,024 GB300 |
-| > 1 PB in memory | **not run, reachable only on GB300.** 1,024 nodes of 6,814 free. H4D needs 1,403 against 562, which no grant can supply |
+| Correctness | **met.** 1,400 GB on H4D, 137.4 GB on 8 H200, 12.9 GB on 4 v6e chips |
+| Reproducibility | **met.** 20/20 at 192 PEs per node on PSM3 |
+| Performance stability | **met.** H4D 5.10 GB/s, GPU 67.15 GB/s, TPU 0.25 GB/s, each flat across its range |
+| >= 4,096 endpoints | **not run, reachable.** 22 H4D nodes at 192 PEs, or 1,026 GB300 nodes |
+| > 1 PB in memory | **not run, reachable on GB300 only.** 1,026 nodes. H4D needs 1,403 in one zone, more than any zone holds free. TPU cannot reach it at any slice size |
 | Deliverable 1, source | **met.** CPU, GPU and TPU implementations, plus `deploy/h4d/sos-psm3-stx.patch` |
 | Deliverable 2, provisioning recipe | **met and exercised.** `deploy/h4d`, plus `deploy/gb300` as a handoff package |
-| Deliverable 3, execution artifacts | **met.** Time to solution and phase breakdown throughout; no byte counter on H4D tracks RoCE, so bandwidth is derived |
+| Deliverable 3, execution artifacts | **met.** Time to solution and phase breakdown throughout, raw logs in `results/raw`. No byte counter on H4D tracks RoCE, so bandwidth is derived |
 | Deliverable 4, architectural narrative | **met.** `docs/architecture.md` |
-| Deliverable 5, failure analysis | **met.** `results/`, including `corrections.md` |
+| Deliverable 5, failure analysis | **met.** `results/`, and `docs/handoff.md` for what no grant can fix |
 
 ## What reaching the target requires
 
-**4,096 endpoints:** 128 H4D nodes. Inside the free pool and below the 192-node H4D
-record. Delivers the endpoint criterion plus about 91 TB in the same run.
+**4,096 endpoints:** 22 H4D nodes at 192 PEs per node, which also hold 15.7 TB. Below the
+192-node H4D record and a 4,224 vCPU quota ask.
 
-**1 PB with 4,096 endpoints:** 1,024 `a4x-maxgpu-4g-metal`, about 15% of the free pool in
-`us-east4-a`. The only configuration where both land together. `deploy/gb300` is ready to
-run.
+**1 PB with 4,096 endpoints:** 1,026 `a4x-maxgpu-4g-metal`, 57 NVL72 domains, 4,104 GPUs.
+The only configuration where both land together. `deploy/gb300` is ready to run, and
+multi-node NVSHMEM on Cloud RoCE has to be fixed first.
 
 **Per-packet adaptive routing** is the one requirement no Google fabric satisfies. It
 describes Ultra Ethernet. This is a conversation with the customer rather than
@@ -95,5 +94,5 @@ engineering.
 ## Scope note
 
 The full-scale demonstration is not in this repository. Reaching it needs a capacity grant
-that has not been made. Everything else is measured, and `docs/scale-out.md` carries the
-arithmetic so no part of it needs deriving again.
+that has not been made. Everything else is measured. `docs/handoff.md` says what a team
+with capacity does next, and `docs/scale-out.md` carries the arithmetic.

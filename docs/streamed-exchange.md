@@ -18,9 +18,9 @@ middle.
 
 ## Inverting the loop
 
-Reverse the nesting — destinations outside, windows inside — and use the rotation that is
+Reverse the nesting, destinations outside and windows inside, and use the rotation that is
 already there. At step `i`, PE `p` sends to `(p + i) % n`. Every PE targets a **different**
-destination at each step, and therefore every PE receives from exactly **one** sender per
+destination at each step, and therefore every PE receives from **one** sender per
 step.
 
 This has a further consequence:
@@ -43,7 +43,7 @@ Inverting the loop **serialises the all-to-all into `n` steps** where the curren
 overlaps every destination within a round. Each step is a single put to a single peer plus
 a barrier. That trades injection concurrency for memory, and on a fabric whose measured
 problem is connection and completion behaviour under concurrent load, it might help or
-hurt — the current round structure is exactly the concurrent put storm that
+hurt, because the current round structure is the concurrent put storm that
 `tools/repro-rxm-livelock.c` shows failing.
 
 So this is not purely a memory optimisation. It is a different communication schedule, and

@@ -30,6 +30,7 @@ static inline int  shmem_n_pes(void) { return 1; }
 static inline void *shmem_malloc(size_t n) { return malloc(n); }
 static inline void shmem_free(void *p) { free(p); }
 static inline void shmem_barrier_all(void) {}
+static inline void shmem_quiet(void) {}
 static inline void shmem_global_exit(int c) { exit(c); }
 
 static inline long long shmem_atomic_fetch_add(long long *t, long long v, int pe)

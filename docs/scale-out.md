@@ -120,7 +120,7 @@ Peak is 2.02x today, already down from 2.30x. Two changes remain, both local to
    `recv` fills, so the two never both hold a full copy. Takes 2.02x to about 1.15x, which
    would put 1 PB on H4D at 799 nodes. Still beyond the free pool.
 2. **Single-slot symmetric window.** `src/cpu/isx64_stream.c` already does this: because
-   the exchange rotates destinations, every PE receives from exactly one sender per step,
+   the exchange rotates destinations, every PE receives from one sender per step,
    so the window is `WINDOW * 8` bytes rather than `NUM_PES * WINDOW * 8`. At 25,600 PEs
    that is 131 KB instead of 3.36 GB per PE. See `docs/streamed-exchange.md`.
 
@@ -130,7 +130,7 @@ Neither changes the conclusion for H4D at 1 PB.
 
 Everything here above two nodes is arithmetic. In order:
 
-1. **32 PEs/node on 4 nodes**, which tests whether anything is specific to a node pair.
+1. **192 PEs/node on 4 nodes**, which tests whether anything is specific to a node pair.
 2. **The scaling curve at 8, 16, 32 nodes**, holding keys per node constant. That gives
    the weak-scaling slope the projection assumes.
 3. **A 20-run reproducibility set** at the largest stable shape.

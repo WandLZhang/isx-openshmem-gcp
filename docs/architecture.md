@@ -35,7 +35,7 @@ Selecting on what the fabric must do rather than on the named hardware:
 | x4, m4 | none | up to 32 TB | fails the fabric requirement outright |
 | TPU v7x | ICI, not RDMA | 192 GB HBM/chip | no PGAS; compiler collectives only |
 
-The honest framing is **h4d is the compliance path and a4x is the scale path**.
+h4d is the compliance path and a4x is the scale path.
 
 ### Measuring capacity
 
@@ -96,49 +96,54 @@ parallelstore repo with no matching `-devel` in any repo, and the only `-devel` 
 (1.18.0) conflicts with `mercury`. There is no supported way to compile against the system
 libfabric.
 
-## 5. Results and the two walls
+## 5. Results, and two walls that turned out to be provider-specific
 
-Cross-node one-sided RDMA works. Two PEs on two physical nodes, each writing into the
-other's symmetric heap with no matching receive on the target. No `libmpi` in the runtime;
-the launcher is `srun --mpi=pmi2`, which is Slurm's PMI.
-
-ISx64 weak scaling, 4.19M keys per PE, 2 nodes:
-
-| PEs | TTS | rate | all2all | radix | all2all share |
-|---:|---:|---:|---:|---:|---:|
-| 16 | 0.088 s | 6.08 GB/s | 0.021 s | 0.031 s | 24% |
-| 32 | 0.125 s | 8.58 GB/s | 0.044 s | 0.034 s | 35% |
-| 64 | 0.226 s | 9.52 GB/s | 0.116 s | 0.041 s | **51%** |
-
-The exchange roughly doubles per PE doubling while the local sort stays flat. That is
-correct weak-scaling behaviour. By 64 PEs the benchmark measures the fabric rather than
-the CPU, which is the regime it exists to measure. It reaches that regime at the same
-point as the first wall.
+Both walls below were measured on `verbs;ofi_rxm`. Both are gone on PSM3, and knowing that
+they belonged to the provider rather than to H4D is the study's main transport finding.
 
 ### Wall 1: 32 PEs per node
 
-Past it, every configuration dies with `Operation retry limit exceeded (1073741824)`. The
-wall tracks PEs **per node**, not total, which points at contention for the single
-200 Gbps IRDMA vNIC and its completion resources. `SHMEM_OFI_STX_AUTO=1` and
-`SHMEM_OFI_STX_MAX=8` do not move it.
+On `ofi_rxm`, every configuration past 32 PEs per node died with
+`Operation retry limit exceeded (1073741824)`. The wall tracked PEs **per node** rather
+than total. `SHMEM_OFI_STX_AUTO=1` and `SHMEM_OFI_STX_MAX=8` did not move it.
 
-Consequence: reaching 4,096 endpoints needs **128 nodes**, not the 22 that 192 PEs per node
-would have allowed.
+Cause is connection establishment. `ofi_rxm` opens a connection per peer, so setup cost
+grows with `PEs_per_node x total_PEs` and stalls near 8,192 connections per node.
 
-### Wall 2: ~32 GB of symmetric heap per node
+**On PSM3 the wall does not exist.** 192 PEs per node, one per vCPU, validates 20/20.
+Round-0 cost grows 3.1x from 16 to 64 PEs per node against 16.8x on `ofi_rxm`, so the
+superlinear term is gone. 4,096 endpoints costs 22 nodes.
+
+### Wall 2: about 32 GB of symmetric heap per node
 
 Aggregate, not per PE: one PE with 32 GB works, eight PEs with 4 GB each works, and every
 64 GB-per-node arrangement fails. Cause is basic MR pinning and registering the whole heap
 at `shmem_init()`. Huge pages do not lift it.
 
-Consequence: about 26.7 GB of sortable keys per node, so 1 PB needs roughly **37,500
-nodes**, which is far beyond any single-zone H4D pool.
+Stock ISx puts the receive buffer in the symmetric heap, which capped the dataset at about
+26.7 GB of keys per node and put 1 PB at roughly 37,500 nodes.
 
-### Interaction between the two walls
+**The windowed exchange removes it.** `src/cpu/isx64_win.c` keeps one window slot per PE in
+the heap and the dataset in ordinary memory, so the heap is about 0.5 MB per PE and does
+not grow with the data. Node count then follows ordinary memory: 713 GB of keys per node,
+1,403 nodes for 1 PB.
 
-1 PB wants a large heap per node. 4,096 endpoints wants many PEs per node. At the measured
-limits, the largest configuration satisfying the endpoint requirement sorts about
-**3.4 TB** — 0.3% of the target. Neither limit is a tuning parameter.
+### What is left after both
+
+Two `h4d-highmem-192` sorted **1,400 GB** at **5.10 GB/s**, 384 PEs, every run validated.
+That is 98% of what two nodes hold at the measured 2.02x footprint.
+
+| | `verbs;ofi_rxm` | `psm3` |
+|---|---:|---:|
+| Working density | 32 PEs/node | 192 PEs/node |
+| Largest validated | 8.59 GB | 1,400 GB |
+| Rate | 1.50 GB/s | 5.10 GB/s |
+
+The exchange is 84-88% of runtime throughout, so the benchmark measures the fabric rather
+than the CPU, which is the regime it exists to measure.
+
+What remains is capacity. 1 PB needs 1,403 nodes in one zone and no zone holds that many
+unallocated.
 
 ## 6. The TPU path
 
@@ -147,52 +152,60 @@ TPUs do handle 64-bit integers, despite documentation stating `int32` only. Meas
 returns ordered output at a 1.48x penalty against int32, and `all_to_all` moves uint64 over
 ICI at 175 GB/s.
 
-The constraint is structural. ISx buckets are statistically
-even but never exactly even. PGAS does not care: a PE puts whatever it has. A collective
-needs an agreed shape before the compiler can emit it, so the exchange must either pad
-every bucket or use `ragged_all_to_all`. **That gap is the real difference between the two
-paradigms**, and it is measurable rather than rhetorical.
+The constraint is structural. ISx buckets are statistically even but never perfectly even.
+A PE under PGAS puts whatever it has. A collective needs an agreed shape before the
+compiler can emit it, so the exchange must either pad every bucket or use
+`ragged_all_to_all`. Padding costs bandwidth on the padding.
 
-The first implementation verifies correct at 16.7M keys on 4 chips but reports only
-0.20 GB/s end to end, against 175 GB/s for the exchange alone on the same hardware. The
-network is under 1% of the time; the padded path costs two full sorts per iteration. That
-number measures an untuned local phase. `results/` says so.
+Measured on 4 v6e chips: the ICI exchange runs at 200 GB/s and takes 0.1% of the step,
+while local bucketing takes 97.4%. End to end the sort reports 0.25 GB/s. The collective
+is not the cost; the padded local path is.
 
-TPU is ultimately bounded by capacity, not arithmetic: 192 GiB per chip and a maximum slice
-of 9,216 chips gives 1.9 PB of HBM, and ISx needs about 2.5x the key array resident.
+TPU is bounded by slice size rather than by supply. A job cannot span slices over ICI. v6e
+tops out at 256 chips and 8.2 TB. TPU7x reaches 9,216 chips and 1.77 PB of HBM, against the
+2.02 PB that 1 PB of keys needs resident. No grant moves either number.
 
 ## 7. Topology-aware programming
 
-It helps in three places, all of which were necessary here:
+It helps in three places:
 
 - **Placement.** Compact placement and single-zone allocation are mandatory, because Cloud
-  RDMA does not cross zones. There is no topology-aware fallback for a stocked-out zone.
-- **PE-to-node mapping.** With the exchange dominating past 64 PEs and a hard wall at 32
-  PEs per node, how ranks map onto NICs is the dominant tunable. 4,096 endpoints on 128
-  nodes at 32 PEs each is the only shape that satisfies the endpoint requirement.
+  RDMA and NVLink both stop at the zone boundary. There is no topology-aware fallback for a
+  stocked-out zone. Cluster Director publishes the hierarchy to Slurm and GKE: a sub-block
+  is one rack behind a single top-of-rack switch, a block is sub-blocks on non-blocking
+  fabric, a cluster is blocks. A reservation is what makes it visible.
+- **PE-to-node mapping.** The exchange dominates past 64 PEs, so how ranks map onto NICs is
+  the dominant tunable. On PSM3 the answer is one PE per vCPU, which puts 4,096 endpoints on
+  22 nodes.
 - **Rotating the all-to-all start offset**, so all PEs do not target rank 0 first. Retained
   from upstream.
 
-It cannot help with either wall. Both are properties of the NIC and its registration
-budget, not of how work is arranged across a topology. This is the substantive difference
-from a purpose-built HPC fabric, where per-node injection and registration capacity are
-provisioned for exactly this access pattern.
+It would not have helped with either wall in section 5. Both were properties of the
+provider's connection and registration model rather than of how work is arranged across a
+topology. Changing the provider fixed them; rearranging ranks would not have.
+
+Where it will matter next is GB300. NVLink spans 72 GPUs, so at 4,104 endpoints 56 of every
+57 bytes in the all-to-all cross RoCE. Making the bucket assignment domain-aware keeps most
+keys inside the domain that generated them, and that is a change to the routing prefix in
+`compute_dest` rather than to the exchange.
 
 ## 8. Recommendation
 
-For the study as specified, on H4D, the measured result is negative. The fabric does
-genuine one-sided RDMA and the benchmark verifies correct across nodes, but 1 PB across
-4,096 endpoints is out of reach by roughly two orders of magnitude, for reasons that are
-fabric properties rather than configuration.
+H4D on PSM3 meets every criterion the hardware can reach. Two nodes sorted 1,400 GB at
+5.10 GB/s with 20/20 validation at full density. 4,096 endpoints costs 22 nodes and 100 TB
+costs 140, both quota rather than physics.
 
-Three things would change that answer, in order of value:
+1 PB on H4D is out of reach. It needs 1,403 nodes in one zone, more than any zone holds
+unallocated, and that is supply rather than a fabric property.
 
-1. **Redesign the exchange to stream through a small symmetric window** rather than sizing
-   the window to the dataset. This decouples dataset size from the heap ceiling and is the
-   only route to a petabyte on this hardware. It is a real departure from stock ISx, so it
-   is the customer's call.
-2. **Evaluate a4x (GB200)**, which has both the endpoint count and the memory, and where
-   NVSHMEM is native rather than ported. It needs a reservation.
-3. **Characterise the jitter** before any result is called reproducible. 8 PEs passed
-   standalone and failed inside a sweep. Reproducibility is a stated success criterion and
-   is currently unmet.
+Three things follow, in order of value:
+
+1. **Ask for 22 H4D nodes.** It clears the 4,096-endpoint criterion outright, sorts 15.7 TB
+   while doing it, and costs 4,224 vCPU. Everything needed to run it is in `deploy/h4d`.
+2. **Fix multi-node NVSHMEM on Cloud RoCE.** GB300 is the only family where 1 PB and 4,096
+   endpoints land together, at 1,026 nodes. `ibdevx` already registers GPU memory through
+   dmabuf and then segfaults on the first cross-node put, so this is one bug rather than a
+   redesign. An hour on two nodes settles it. See `results/gpu-nvshmem.md`.
+3. **Take per-packet adaptive routing back to the customer.** No Google fabric sprays per
+   packet, by design, because RoCE treats reordering as loss. The requirement describes
+   Ultra Ethernet. That is a conversation rather than engineering.

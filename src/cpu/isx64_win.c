@@ -7,7 +7,7 @@
  * WHY THIS EXISTS
  *
  * On H4D Cloud RDMA the symmetric heap will not grow past about 32 GB per node
- * (results/corrections.md). The provider rejects scalable memory
+ * (results/windowed-exchange.md). The provider rejects scalable memory
  * registration, so SOS must use basic mode, which pins and registers the entire heap at
  * shmem_init() before any data moves. Stock ISx sizes its receive buffer to the whole
  * per-PE dataset, so dataset size runs straight into that ceiling: 32 GB/node over 870

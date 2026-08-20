@@ -16,12 +16,12 @@
  *   64        1            0            0/3
  *   64        0            1            0/4
  *
- * On failure every PE spins at ~98% CPU, state R, in try_again until it exhausts the
+ * On failure every PE spins at about 98% CPU, state R, in try_again until it exhausts the
  * 2^30 retry budget, then:
  *     ERROR: transport_ofi.h:596: try_again
  *            Operation retry limit exceeded (1073741824)
  *
- * Three things worth noting for anyone triaging this:
+ * Three things to know when triaging this:
  *
  *  1. Puts alone are sufficient. There is no sort, no atomic, and no collective here
  *     beyond a barrier, and it still fails. Whatever this is, it is below OpenSHMEM.
@@ -44,7 +44,7 @@
  * time first: the 6.2 s moves into the warmup and round 0 drops to 0.098 s, which
  * confirms the attribution, but completion only goes 0/5 -> 1/5 and the hang moves into
  * the warmup. So it is not concurrency of connection setup, it is that establishing
- * ~8k connections per node on this provider is unreliable. See
+ * About 8k connections per node on this provider is unreliable. See
  * results/rxm-connection-limit.md.
  *
  * NOT the cause, each tested and ruled out:
@@ -88,7 +88,7 @@
 #include <shmem.h>
 
 #define BLOCK_WORDS 32768          /* 256 KB per put */
-#define ROUNDS_DEFAULT 4           /* override with ROUNDS=n; ISx64 does ~128 */
+#define ROUNDS_DEFAULT 4           /* override with ROUNDS=n; ISx64 does about 128 */
 
 /* ISx claims space in the target's receive buffer with a fetch-and-add against a single
  * 8-byte counter on that target, once per destination. Every PE therefore hits the same
@@ -119,7 +119,7 @@ int main(void)
     const int use_atomic = a ? atoi(a) : 0;
     const char *w = getenv("WARMUP");
     const int warmup = w ? atoi(w) : 0;
-    /* ISx64 at 64 PEs/node issues ~16k puts per PE (128 windowed rounds x 128 peers)
+    /* ISx64 at 64 PEs/node issues about 16k puts per PE (128 windowed rounds x 128 peers)
      * against this reproducer's 512. Operation count is the largest single difference
      * between them, so make it a variable. */
     const char *rr = getenv("ROUNDS");

@@ -14,7 +14,7 @@
  *
  * SCHEDULE. Destinations on the outside, windows inside, matching isx64_stream.c. At step
  * i, PE p sends to (p + i) % n, so every PE targets a distinct destination and receives
- * from exactly one sender per step. The symmetric window is therefore ONE slot rather
+ * from one sender per step. The symmetric window is therefore ONE slot rather
  * than one per peer: WINDOW * 8 bytes per PE instead of NUM_PES * WINDOW * 8. At 4,096
  * endpoints that is 128 KB instead of 512 MB. See docs/streamed-exchange.md.
  *
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
     t_bucket += now_s() - t0;
 
     /* ---- phase 2b: the exchange ----
-     * Destination outside, windows inside. Every PE receives from exactly one sender per
+     * Destination outside, windows inside. Every PE receives from one sender per
      * step, so the window needs a single slot. */
     t0 = now_s();
     recv_n = 0;

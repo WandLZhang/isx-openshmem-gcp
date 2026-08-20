@@ -1,8 +1,7 @@
 # Per-packet adaptive routing on H4D
 
-The brief requires a fabric with "per-packet adaptive routing". This was never tested
-until 2026-08-15. The answer is no, with three independent lines of evidence and one
-limitation that two nodes cannot overcome.
+The brief requires a fabric with "per-packet adaptive routing". H4D does not do it. Three
+lines of evidence below, and one limitation that two nodes cannot overcome.
 
 ## 1. Falcon does not do per-packet spraying, by design
 
@@ -86,7 +85,7 @@ nodes. It is on the list in `docs/scale-out.md` for when capacity lands.
 | Was any reordering observed? | **No.** Zero out-of-order packets across all traffic in this study |
 | Is per-packet AR achievable on H4D? | **Not through this stack.** It would need a fabric that sprays and a transport that tolerates reordering |
 
-The honest framing for the customer: this requirement describes Ultra Ethernet. Google's
+This requirement describes Ultra Ethernet. Google's
 Falcon made the opposite choice deliberately, and its own published comparison argues
 subflow multipath beats RoCE plus switch-based adaptive routing, reporting up to 8x lower
 completion times against CX-7 RoCE under loss. If the underlying goal is "use all

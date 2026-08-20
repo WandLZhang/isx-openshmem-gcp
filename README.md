@@ -56,42 +56,63 @@ switching removes the failure that bounded the study.
 PSM3 implements no connection management, so nothing grows with the square of the job.
 The three changes required to run SOS on PSM3 are in [results/h4d-psm3.md](results/h4d-psm3.md).
 
-## Can the target be reached
+## Can the criteria be reached
+
+| | H4D, OpenSHMEM/PSM3 | TPU v6e, JAX | GB300, NVSHMEM |
+|---|---|---|---|
+| Correctness | met, 1,400 GB | met, 12.9 GB | met on 8 x H200, 1 node |
+| Reproducibility | met, 20/20 | met, within 0.1% | not run multi-node |
+| Performance stability | met, 5.10 GB/s flat | met, 0.25 GB/s flat | met on 1 node |
+| Scale, >1 PB | **no, supply** | **no, architecture** | **yes**, 1,026 nodes |
+| Scale, 4,096 endpoints | **yes**, 22 nodes | **no on v6e**, yes on TPU7x | **yes**, 4,104 GPUs |
+| OpenSHMEM one-sided PGAS | met | **no, architecture** | qualifies, blocked across nodes |
+| Connectionless fabric | met, PSM3 | n/a | unproven |
+| Per-packet adaptive routing | **no, by design** | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
+| Operational plausibility | met | met | package shipped, one blocker |
+
+Three different reasons sit behind the four "no" cells.
+
+**Supply.** H4D at 1 PB needs 1,403 nodes in one zone, because Cloud RDMA cannot cross
+zones, and that is more than any zone holds unallocated. The machines would work if they
+existed. The largest H4D run on record is 192 nodes.
+
+**Architecture.** TPU has no PGAS and no remote put, so the one-sided requirement cannot be
+met. A job cannot span slices over ICI either, so the largest slice that exists, TPU7x at
+9,216 chips, holds 1.77 PB against the 2.02 PB the sort needs resident. No grant changes
+either fact.
+
+**Design.** Falcon uses multipath subflows rather than per-packet spraying, because
+per-packet routing reorders packets and RoCE treats reordering as loss. Zero out-of-order
+arrivals across every run. See [results/adaptive-routing.md](results/adaptive-routing.md).
+
+**A blocker, not a wall.** GB300 reaches the full target at 1,026 nodes. Two things sit in
+front of it: `nvidia-gb300` is not allowlisted on this project, and multi-node NVSHMEM does
+not work on Cloud RoCE. `ibdevx` already registers GPU memory through dmabuf and then
+segfaults on the first cross-node put.
+
+### Node counts
 
 Peak resident memory is 2.02x the key array, measured. Usable memory per node is the total
 less about 48 GB for OS and symmetric heap. Verdicts compare the node count against the
-unallocated pool of the best single zone, which Cloud RDMA and NVLink both require.
+unallocated pool of the best single zone.
 
-| machine | mem/node | endpoints/node | 100%: 1 PB + 4,096 ep | 10%: 100 TB + 410 ep |
+| machine | mem/node | endpoints/node | 1 PB + 4,096 ep | 100 TB |
 |---|---:|---:|---|---|
-| `h4d-highmem-192` | 1,440 GB | 192 PE | **1,403 nodes — impossible** | 140 nodes — fits |
-| `a4x-maxgpu-4g` (GB300) | 2,076 GB | 4 GPU | **1,026 nodes — fits** | 108 nodes — fits |
-| `a4x-highgpu-4g` (GB200) | 1,628 GB | 4 GPU | 1,242 nodes — just short | 126 nodes — fits |
+| `h4d-highmem-192` | 1,440 GB | 192 PE | 1,403 nodes, impossible | 140 nodes, fits |
+| `a4x-maxgpu-4g` (GB300) | 2,076 GB | 4 GPU | **1,026 nodes, fits** | 108 nodes, fits |
+| `a4x-highgpu-4g` (GB200) | 1,628 GB | 4 GPU | 1,242 nodes, just short | 126 nodes, fits |
 
-A4X capacity comes in fixed 18-node NVLink domains, so both A4X rows round up to a
-multiple of 18. 1,026 nodes is 57 domains and 4,104 GPU endpoints.
+A4X capacity comes in fixed 18-node NVLink domains, so both A4X rows round up to a multiple
+of 18. 1,026 nodes is 57 domains and 4,104 GPU endpoints. A4X Max refuses Spot, so it needs
+a reservation, which is also what makes Cluster Director topology visible.
 
-**The full target is physically unreachable on H4D.** It needs 1,403 nodes in one zone and
-no zone holds that many unallocated anywhere. This is not a quota question, because a
-grant cannot produce machines that are already allocated. The largest H4D run on record is
-192 nodes.
+**4,096 endpoints on H4D costs 22 nodes.** 192 PEs per node validated 20/20, and 22 nodes
+still hold 15.7 TB. The 100 TB run at 140 nodes gives 26,880 endpoints.
 
-**GB300 is the only family where the full target fits**, at 1,026 nodes, comfortably inside
-one zone. GB200 is just short. A4X Max refuses Spot outright —
-`Preemptible VMs are not supported for this VM family` — so it needs a reservation, which
-is also what makes Cluster Director topology visible.
+Free-pool size is not obtainability. H4D returned `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone
+the supply data showed as mostly free.
 
-**All three reach 10%.** On H4D, 100 TB needs 140 nodes for memory, and at 192 PEs per node
-that is 26,880 endpoints, so a 10% data run on H4D clears the *full* endpoint requirement
-several times over.
-
-**The endpoint criterion alone needs 22 H4D nodes.** 192 PEs per node validated 20/20, so
-4,096 endpoints is 22 nodes, which also holds 15.7 TB. That is a far smaller ask than the
-140 nodes the data target needs, and it is the cheapest way to demonstrate the endpoint
-count on a fabric that meets the one-sided requirement.
-
-One caveat throughout: free-pool size is not obtainability. H4D returned
-`ZONE_RESOURCE_POOL_EXHAUSTED` in a zone the supply data showed as mostly free.
+Steps for a team with capacity are in [docs/handoff.md](docs/handoff.md).
 
 ## Running it
 
@@ -135,24 +156,6 @@ bash deploy/gb300/run.sh smoke               # one node, 4 GPUs, seconds
 bash deploy/gb300/run.sh 10                  # 108 nodes, 100 TB
 bash deploy/gb300/run.sh full                # 1026 nodes, 1 PB
 ```
-
-## What is not met
-
-**Per-packet adaptive routing.** Falcon uses multipath subflows rather than per-packet
-spraying, by design: per-packet routing reorders packets and RoCE treats reordering as
-loss. Zero out-of-order arrivals were measured across every run. See
-[results/adaptive-routing.md](results/adaptive-routing.md).
-
-**Connectionless fabric semantics.** PSM3 has no connection management, which meets this
-in substance. `verbs;ofi_rxd`, the provider that advertises it explicitly, cannot complete
-SOS startup.
-
-**Scale.** 1,099.5 GB validated against 1 PB, on two nodes. Reachable on GB300, not on H4D.
-
-**Multi-node NVSHMEM.** Fails on Google Cloud RoCE with the packaged build, root-caused to
-GPU memory registration. The fabric itself moves 45 GB/s host to host. Settle this on two
-nodes before any GB300 allocation, because it applies to every byte that leaves an NVL72
-domain.
 
 ## Layout
 

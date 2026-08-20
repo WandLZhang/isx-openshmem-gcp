@@ -3,8 +3,8 @@
 #
 # Measured 2026-08-14 against an h4d-highmem-192 in us-central1-b, per command:
 #
-#   gcloud compute ssh --tunnel-through-iap        ~3.5  s
-#   raw ssh to an external IP, fresh connection    ~0.7  s   (one 11.9 s outlier in 3)
+#   gcloud compute ssh --tunnel-through-iap         3.5  s
+#   raw ssh to an external IP, fresh connection     0.7  s   (one 11.9 s outlier in 3)
 #   raw ssh + ControlMaster, external IP            0.11 s
 #   raw ssh + ControlMaster, over IAP               0.11 s
 #

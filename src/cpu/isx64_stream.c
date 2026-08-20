@@ -7,7 +7,7 @@
  * WHY THIS EXISTS
  *
  * On H4D Cloud RDMA the symmetric heap will not grow past about 32 GB per node
- * (results/corrections.md). The provider rejects scalable memory
+ * (results/windowed-exchange.md). The provider rejects scalable memory
  * registration, so SOS must use basic mode, which pins and registers the entire heap at
  * shmem_init() before any data moves. Stock ISx sizes its receive buffer to the whole
  * per-PE dataset, so dataset size runs straight into that ceiling: 32 GB/node over 870
@@ -111,7 +111,7 @@ static void radix_sort(KEY_TYPE *keys, uint64_t n)
  *
  * Inverting the nesting exploits the rotation that was already there. At step i, PE p
  * sends to (p + i) % n, so every PE targets a distinct destination and therefore
- * receives from exactly one sender per step. The window collapses to a SINGLE slot:
+ * receives from one sender per step. The window collapses to a SINGLE slot:
  * WINDOW * 8 bytes per PE, independent of PE count. At 25,600 PEs that is 131 KB
  * instead of 3.36 GB.
  *

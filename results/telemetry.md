@@ -1,4 +1,4 @@
-# Deliverable 3: telemetry available on H4D
+# Telemetry available on H4D
 
 ## Network utilisation
 
@@ -7,9 +7,8 @@ Snapshotting every counter in `/sys/class/infiniband/irdma0/ports/1/hw_counters`
 **8.59 GiB** from that node in 1.936 s, **not one counter moved by more than 100 KB**.
 
 RoCE writes are offloaded in hardware, so they bypass the netdev statistics, and this
-irdma build does not expose byte counts in its RDMA counters either. The earlier note that
-`ip4InOctets`/`ip4OutOctets` do not track RoCE was right, and no substitute counter exists
-on this platform.
+irdma build does not expose byte counts in its RDMA counters either. `ip4InOctets` and
+`ip4OutOctets` do not track RoCE, and no substitute counter exists on this platform.
 
 The workable substitute is derived bandwidth from a known payload and measured wall time,
 which is what the benchmark reports anyway:

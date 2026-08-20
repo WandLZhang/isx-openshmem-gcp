@@ -2,7 +2,7 @@
 
 The brief asks whether "the setup must represent a configuration realistically usable in
 production". That is not directly measurable, so it is broken into six tests an operator
-would actually apply. Five are answered. One is measuring.
+would apply.
 
 ## A. Does the provisioning recipe reproduce from cold? PASS
 

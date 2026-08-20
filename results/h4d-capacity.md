@@ -2,8 +2,7 @@
 
 Established 2026-08-14 in project `wz-isx-benchmark`.
 
-The scale target was never blocked by code, and past the first zone it was not blocked by
-capacity either. It is blocked by a quota most people never look at.
+`CPUS_PER_VM_FAMILY` is the binding metric, not `CPUS`.
 
 ## The measurement
 
@@ -59,34 +58,26 @@ support or the internal capacity escalation path. A console click will not do it
 
 ## Requirement for the target
 
-| goal | PEs | PEs/node (measured wall) | nodes | H4D vCPU | quota needed |
-|---|---:|---:|---:|---:|---:|
-| current | 64 | 32 | 2 | 384 | 500 (have) |
-| 4,096 endpoints | 4,096 | 32 | 128 | 24,576 | **24,576** |
-| 1 PB in memory | — | — | ~37,500 | 7,200,000 | not plausible |
+Density is 192 PEs per node, one per vCPU, validated 20/20 on PSM3.
 
-Reaching the endpoint requirement needs a **49x** increase in `CPUS_PER_VM_FAMILY` for
-H4D, in a single region, and the nodes must all land in one zone because Cloud RDMA cannot
-cross zones. Single-zone H4D pools are large enough for this to be plausible, so
-128 nodes is physically plausible where 37,500 is not.
+| goal | endpoints | nodes | H4D vCPU | quota needed |
+|---|---:|---:|---:|---:|
+| current | 384 | 2 | 384 | 500, have |
+| 4,096 endpoints | 4,224 | 22 | 4,224 | **4,224** |
+| 100 TB | 26,880 | 140 | 26,880 | **26,880** |
+| 1 PB | 269,376 | 1,403 | 269,376 | more than any zone holds free |
+
+All nodes must land in one zone, because Cloud RDMA cannot cross zones.
 
 ## Ordering of the blockers
 
-The three limits found in this study apply in sequence, and only the first is currently
-binding:
+1. **`CPUS_PER_VM_FAMILY` = 500** caps the cluster at 2 nodes. Needs a quota request. This
+   is the only one still binding.
+2. **PE density** was capped at 32 per node on `verbs;ofi_rxm`. PSM3 runs 192, so this is
+   resolved.
+3. **Symmetric heap** capped the dataset at about 26.7 GB of keys per node. The windowed
+   exchange holds one window slot per PE instead, so this is resolved. See
+   `windowed-exchange.md`.
 
-1. **`CPUS_PER_VM_FAMILY` = 500** caps the cluster at 2 nodes. Needs a quota request.
-2. **32 PEs per node** caps endpoints at 64 on those 2 nodes. Needs a fix or a workaround
-   for the OFI retry-limit wall.
-3. **~32 GB symmetric heap per node** caps the dataset at about 26.7 GB of keys per node.
-   Needs the streaming redesign described in `BLOCKER_symmetric_heap_20260814.md`.
-
-Raising the quota alone would take the demonstration from 64 endpoints to 4,096 and from
-2 GB to roughly 3.4 TB. It would not reach 1 PB; blocker 3 governs that, and no quota
-change affects it.
-
-## Recommended ask
-
-Request `CPUS_PER_VM_FAMILY` for **H4D = 24,576 in a single region**, sized for 128
-`h4d-highmem-192` nodes in one zone. This is the smallest request that makes the 4,096-endpoint
-criterion testable, and it is the request to put through the capacity escalation path.
+Raising the quota to 4,224 vCPU takes the demonstration from 384 endpoints to 4,224 and
+from 1.4 TB to 15.7 TB. Reaching 1 PB needs machines that no zone has free.
