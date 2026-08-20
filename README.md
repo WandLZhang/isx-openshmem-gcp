@@ -88,15 +88,13 @@ here at any budget.
 
 Selecting on what the fabric must do rather than on the named hardware:
 
-| family | RDMA | memory/node | why it was or was not chosen |
+| family | RDMA | memory/node | role |
 |---|---|---:|---|
-| **h4d-highmem-192** | Cloud RDMA, Falcon and iRDMA | 1,488 GB | **chosen.** Only CPU family with RDMA, and the only one obtainable without a capacity request |
-| a4x (GB200, GB300) | RoCE | 960 GB + 186 GB HBM/GPU | the scale path; needs a reservation and an accelerator allowlist |
-| a3-ultra (H200) | RoCE | 3,072 GB | used as the NVLink stand-in for GB300 |
+| `a4x-maxgpu-4g-metal` (GB300) | RoCE | 2,076 GB | the only family that reaches 1 PB and 4,096 endpoints together. Needs a reservation and an accelerator allowlist |
+| `h4d-highmem-192` | Cloud RDMA, Falcon and iRDMA | 1,488 GB | the only CPU family with RDMA, and the only one obtainable without a capacity request. Reaches 100 TB and the endpoint count, not 1 PB |
+| `a3-ultragpu-8g` (H200) | RoCE | 3,072 GB | NVLink stand-in for GB300, since GB300 is not allowlisted |
 | x4, m4 | none | up to 32 TB | fails the fabric requirement outright |
 | TPU7x | ICI, not RDMA | 192 GiB HBM/chip | no PGAS; compiler collectives only |
-
-h4d is the compliance path and a4x is the scale path.
 
 Capacity reporting disagreed with real requests three times. Absolute pool size predicted
 nothing; how much of a zone was already committed predicted well. Confirm a zone by trying
@@ -219,12 +217,23 @@ fabric.
 
 ```bash
 bash deploy/h4d/00_setup_project.sh          # org policy, quota, APIs
-bash deploy/h4d/01_build_sos.sh              # libfabric + SOS, on a compute node
+# set h4d_cluster_size and zone in deploy/h4d/isx-slurm-h4d.yaml, then deploy it
+bash deploy/h4d/01_build_sos.sh              # libfabric + SOS, to /opt/isx on shared storage
+make -C src/cpu                              # builds isx64_win, put it at ~/bin/isx64win
 bash deploy/h4d/run_isx64.sh <nodes> <pes_per_node> <keys_per_pe>
 ```
 
-`run_isx64.sh` pre-flights the fabric before spending the allocation, then retries. A
-failed attempt otherwise costs 237 seconds waiting out the retry budget.
+`run_isx64.sh` pre-flights the fabric on two PEs before spending the allocation, then
+retries. It launches with `srun --mpi=pmi2`; outside Slurm, install `mpich` and use
+`mpiexec.hydra`, because `oshrun` has no launcher on a bare VM.
+
+Both target runs fill the nodes, so keys per PE is the same either way: 22 nodes gives
+4,224 endpoints and 15.7 TB, 140 nodes gives 100 TB.
+
+```bash
+bash deploy/h4d/run_isx64.sh  22 192 464300000   # 4,096 endpoints, 15.7 TB
+bash deploy/h4d/run_isx64.sh 140 192 465029017   # 100 TB
+```
 
 ### On GB300
 

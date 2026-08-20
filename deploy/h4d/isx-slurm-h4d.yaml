@@ -84,7 +84,7 @@ deployment_groups:
       # For more details, see https://cloud.google.com/compute/docs/instances/create-hpc-vm#disable_automatic_updates
       allow_automatic_updates: false
       bandwidth_tier: gvnic_enabled
-      machine_type: h4d-highmem-192-lssd
+      machine_type: h4d-highmem-192   # ISX64: in-memory sort, the -lssd local disk is unused
       node_count_static: $(vars.h4d_cluster_size)
       node_count_dynamic_max: 0
       enable_placement: false

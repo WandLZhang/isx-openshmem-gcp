@@ -3,10 +3,8 @@
 #
 # H4D runs onHostMaintenance=TERMINATE and cannot live-migrate, so a maintenance event on
 # any node kills the job. Checkpointing costs more than the run at this size, so the answer
-# is to retry (results/operations.md).
-#
-# Both are handled the same way: pre-flight the fabric so a doomed run fails in seconds
-# instead of minutes, then retry.
+# is to retry (results/operations.md). Pre-flight the fabric first so a doomed run fails in
+# seconds instead of spending the allocation.
 #
 #   ./run_isx64.sh <nodes> <pes_per_node> <keys_per_pe> [attempts]
 set -uo pipefail
@@ -16,8 +14,9 @@ PPN=${2:?pes per node}
 KEYS=${3:?keys per pe}
 ATTEMPTS=${4:-5}
 
-BIN=${ISX64_BIN:-$HOME/isx64win}
-PREFIX=${SOS_PREFIX:-$HOME/isx}
+BIN=${ISX64_BIN:-$HOME/bin/isx64win}
+# Must match PREFIX in 01_build_sos.sh.
+PREFIX=${SOS_PREFIX:-/opt/isx}
 OUT=${ISX64_OUT:-$HOME/isx64_results}
 mkdir -p "$OUT"
 
@@ -25,15 +24,14 @@ export PATH="$PREFIX/bin:$PATH" LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-
 export SHMEM_OFI_PROVIDER=psm3
 export PSM3_ALLOW_ROUTERS=1
 export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "${SLURM_JOB_ID:-1}")
-export SHMEM_SYMMETRIC_SIZE=${SHMEM_SYMMETRIC_SIZE:-8G}
-# GID 0 is link-local on this NIC and has no route. See results/adaptive-routing.md.
-export FI_VERBS_GID_IDX=${FI_VERBS_GID_IDX:-1}
-# Stops data CQ traffic starving connection-management progress.
-export FI_OFI_RXM_CQ_EQ_FAIRNESS=${FI_OFI_RXM_CQ_EQ_FAIRNESS:-1}
+# The windowed exchange holds one window slot per PE, about 0.5 MB, independent of the
+# dataset. 1G is ample at 192 PEs per node.
+export SHMEM_SYMMETRIC_SIZE=${SHMEM_SYMMETRIC_SIZE:-1G}
+export SHMEM_BOOTSTRAP=${SHMEM_BOOTSTRAP:-PMI}
 
-# A run that completes takes seconds. Anything much longer is the failure path, and
-# waiting out the retry budget wastes the allocation.
-TIMEOUT=${ISX64_TIMEOUT:-300}
+# 1.4 TB on two nodes takes 275 s, and time scales with keys per node. Raise this for a
+# large run rather than letting a healthy job get killed.
+TIMEOUT=${ISX64_TIMEOUT:-1800}
 
 preflight () {
   # Two-PE one-sided put across the allocation. If this fails the fabric is not usable
@@ -65,8 +63,6 @@ for a in $(seq 1 "$ATTEMPTS"); do
 
   if [ $RC -eq 124 ]; then
     echo "    timed out after ${TIMEOUT}s"
-  elif grep -qi "retry limit exceeded" "$LOG.stdout" 2>/dev/null; then
-    echo "    transport gave up after $((T1-T0)) s (retry limit)"
   else
     echo "    failed rc=$RC after $((T1-T0)) s"
   fi
