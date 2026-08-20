@@ -63,9 +63,8 @@ Two consequences for the wrapper in `deploy/h4d/run_isx64.sh`:
   rate, five attempts average about 15 minutes of allocation burned before a success.
   This is what makes the pre-flight check worth having: it fails in seconds instead.
 
-One measurement worth flagging rather than smoothing over: the single passing run took
-40 s, where earlier passing runs at this size took 3.5 to 4.4 s. Time to solution is not
-stable even on success.
+The single passing run took 40 s, where earlier passing runs at this size took 3.5 to
+4.4 s. Time to solution is not stable even on success.
 
 ## E. Survives host maintenance: FAIL, by configuration
 

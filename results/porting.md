@@ -89,7 +89,7 @@ my_bucket_keys = shmem_malloc(KEY_BUFFER_SIZE * sizeof(KEY_TYPE));
 
 A fixed 268 million keys. At scale a PE receives about 1.75e10, which is **65x** larger.
 
-This is the most dangerous of the defects, because the write is one-sided. A PE computes
+The write is one-sided. A PE computes
 an offset into a peer's buffer and writes there without the peer participating. Nothing
 on the target validates the offset. Overrunning it corrupts whatever the peer had in its
 symmetric heap after the buffer, and the symptom appears later, somewhere else, on a

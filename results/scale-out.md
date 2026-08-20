@@ -48,8 +48,7 @@ Request placement with the capacity, not after.
 | A3 Ultra | workload policy, `maxTopologyDistance=2` (block) | 256 instances |
 | H4D | Compute Engine packs instances to minimise hops | — |
 
-This matters for the GB300 exchange. NVLink spans 72 GPUs, so at 4,104 endpoints 56/57 of
-the all-to-all leaves its domain. Domain-aware bucketing needs the topology, and Cluster
+NVLink spans 72 GPUs, so at 4,104 endpoints 56/57 of the all-to-all leaves its domain. Domain-aware bucketing needs the topology, and Cluster
 Director is where it comes from.
 
 ## Against available capacity
@@ -87,9 +86,9 @@ At the measured 5.10 GB/s per two H4D nodes, 100 TB across 140 nodes projects to
 5 minutes. The projection is linear in node count and unvalidated above two nodes; the
 all-to-all gets harder as endpoints grow, so treat it as a floor.
 
-The run being minutes rather than hours decides three things. Checkpointing is not worth
-building, because writing 1 PB takes longer than sorting it. Retry is the right failure
-strategy. And the bill is dominated by how long machines are held rather than by the sort.
+The run takes minutes rather than hours. Checkpointing is not worth building, because
+writing 1 PB takes longer than sorting it, so retry is the failure strategy. The bill is
+dominated by how long machines are held rather than by the sort.
 
 ## H4D configuration
 

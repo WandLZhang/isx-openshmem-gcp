@@ -33,30 +33,26 @@ customer's requirements verbatim.
 | Per-packet adaptive routing | **no, by design** | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
 | Operational plausibility | met | met | package shipped, one blocker |
 
-Three different reasons sit behind the four "no" cells, and only one of them is permanent.
-
 **Supply.** H4D at 1 PB needs 1,403 nodes in one zone, because Cloud RDMA cannot cross
 zones, and that is more than any zone holds unallocated. The machines would work if they
 existed. The largest H4D run on record is 192 nodes.
 
 **Architecture.** TPU has no PGAS and no remote put, so the one-sided requirement cannot be
-met on any generation. That is the permanent one.
+met on any generation, and no grant changes that.
 
-The scale rows are close rather than categorical, and the generation matters. A job cannot
-span slices over ICI, so slice size is the ceiling. v6e tops out at 256 chips and reaches
-neither target. **v5p reaches both the endpoint count and 100 TB**: 95 GiB per chip, a
-16x16x16 slice is 4,096 chips exactly, and it holds about 207 TB of keys at the measured
-2.02x footprint. 1 PB needs 2,020 TB resident, and the largest TPU7x topology holds
-1,900 TB, so it misses by 6%. A footprint below 1.9x would close that gap.
+A job cannot span slices over ICI, so slice size caps the data. v6e tops out at 256 chips
+and reaches neither target. **v5p reaches both the endpoint count and 100 TB**: 95 GiB per
+chip, a 16x16x16 slice is 4,096 chips, which matches the requirement, and it holds about
+207 TB of keys at the measured 2.02x footprint. 1 PB needs 2,020 TB resident against 1,900 TB in the largest
+TPU7x topology, a 6% miss that a footprint below 1.9x would close.
 
 **Design.** Falcon uses multipath subflows rather than per-packet spraying, because
 per-packet routing reorders packets and RoCE treats reordering as loss. Zero out-of-order
 arrivals across every run. See [results/adaptive-routing.md](results/adaptive-routing.md).
 
-**A blocker, not a wall.** GB300 reaches the full target at 1,026 nodes. Two things sit in
-front of it: `nvidia-gb300` is not allowlisted on this project, and multi-node NVSHMEM does
-not work on Cloud RoCE. `ibdevx` already registers GPU memory through dmabuf and then
-segfaults on the first cross-node put.
+**GB300** reaches the full target at 1,026 nodes. `nvidia-gb300` is not allowlisted on this
+project, and multi-node NVSHMEM does not work on Cloud RoCE: `ibdevx` registers GPU memory
+through dmabuf and then segfaults on the first cross-node put.
 
 ### Node counts
 
@@ -93,9 +89,8 @@ Measured against the study project, 2026-08-20.
 | `a4x-maxgpu-4g-metal` (GB300) | **accelerator not allowlisted** | 0 | not run |
 | TPU v6e | 512 on-demand, 1,536 preemptible per zone | a full v6e-256 pod | 12.9 GB, 4 chips |
 
-Two of these are not quota problems. GB300 fails on an accelerator allowlist before quota
-is consulted. TPU has ample quota and no capacity, and its ceiling is slice size rather
-than supply.
+GB300 fails on an accelerator allowlist before quota is consulted. TPU has ample quota and
+no capacity, and its ceiling is slice size rather than supply.
 
 ## What was measured
 
@@ -124,7 +119,7 @@ registration is the blocker. `ibv_reg_mr` on a device pointer fails with errno 1
 the same buffer succeeds and the packaged NVSHMEM has no dmabuf setting to reach it.
 Root cause, evidence and three fixes in [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
 
-### The fabric provider decides everything on H4D
+### PSM3 against `verbs;ofi_rxm`
 
 Earlier work here used `verbs;ofi_rxm`. PSM3 is the provider Google qualifies for H4D, and
 switching removes the failure that bounded the study.
@@ -362,7 +357,6 @@ a 6x range. The ICI exchange runs at 200 GB/s and is 0.1% of the step, while buc
 97.4%.
 
 A job cannot span slices over ICI, so slice size is the ceiling and no grant moves it.
-Which generation you pick decides three of the four rows.
 
 | | v6e | v5p | TPU7x |
 |---|---|---|---|
@@ -373,11 +367,10 @@ Which generation you pick decides three of the four rows.
 | 4,096 endpoints | **no**, max slice is 256 | **yes**, a 16x16x16 slice | yes |
 | OpenSHMEM one-sided | **no**, no PGAS on TPU | same | same |
 
-**v5p is the generation to use.** A 16x16x16 slice is 4,096 chips exactly, which meets the
+**v5p is the generation to use.** A 16x16x16 slice is 4,096 chips, which meets the
 endpoint criterion, and it holds about 207 TB of keys at the measured 2.02x footprint, so it
 clears 100 TB with headroom in the same run. v5p supports multi-host slice node pools in
-GKE, and slices of 1,024 chips and similar have been obtained that way in unrelated work,
-so this is an obtainability data point rather than a spec sheet claim.
+GKE, and slices of 1,024 chips and similar have been obtained that way in unrelated work.
 
 1 PB stays out of reach. It needs 2,020 TB resident and the largest TPU7x topology holds
 1,900 TB, so the miss is 6% rather than an order of magnitude. A footprint below 1.9x would
@@ -396,7 +389,7 @@ None of this makes TPU responsive to the brief. It has no remote put.
 **Met:** validated on 8 x H200 in one node to 137.44 GB at 67.15 GB/s, flat across a 64x
 data range.
 
-**Not met, and the thing to fix first:** multi-node NVSHMEM does not work on Cloud RoCE
+**Not met.** Multi-node NVSHMEM does not work on Cloud RoCE
 with the packaged build.
 
 The fabric works. `ib_write_bw` moves 45.0 GB/s host to host on one of eight NICs, all 8

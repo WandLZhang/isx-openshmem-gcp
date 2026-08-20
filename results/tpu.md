@@ -48,9 +48,8 @@ chip:
 **The ICI exchange moves 0.70 GB at 200 GB/s and is 0.1% of the step.** Local bucketing is
 everything else.
 
-This matters for reading other TPU sort numbers. A timer wrapped around the exchange and
-the local phases together divided by the bytes moved gives a figure labelled GB/s that is
-not an ICI measurement, because the exchange is a small fraction of what the timer covers.
+A timer wrapped around the exchange and the local phases together, divided by the bytes
+moved, gives a figure labelled GB/s that is not an ICI measurement, because the exchange is a small fraction of what the timer covers.
 Which local phase dominates depends on the implementation: bucketing here, the two full
 sorts in the reference implementation described in `notes/`.
 
@@ -101,12 +100,12 @@ most of the answer.
 **v6e reaches neither target.** 256 chips is 4.2 TB of keys and 256 endpoints.
 
 **v5p reaches both the endpoint count and 100 TB, in the same run.** A 16x16x16 slice is
-4,096 chips exactly, which satisfies the endpoint criterion, and it holds about 207 TB of
+4,096 chips, which satisfies the endpoint criterion, and it holds about 207 TB of
 keys, so 100 TB fits with headroom. 100 TB on its own needs about 2,048 chips. Slice shapes
 are 3-tuples with A <= B <= C, multiples of four above 64 chips, up to 16x16x24.
 
 v5p also supports multi-host slice node pools in GKE, and slices of 1,024 chips and similar
-have been obtained that way in unrelated work, so this is not only a spec-sheet claim.
+have been obtained that way in unrelated work.
 
 **1 PB is out of reach, but by 6% rather than an order of magnitude.** It needs 2,020 TB
 resident and the largest TPU7x topology holds 1,900 TB. A resident footprint below 1.9x

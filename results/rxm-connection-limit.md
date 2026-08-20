@@ -75,7 +75,7 @@ provider: verbs;ofi_rxd
 It advertises **FI_ATOMIC and FI_RMA_EVENT**, which SOS asks for at
 `transport_ofi.c:1463-1467`. `verbs;ofi_rxm`, the one that works, advertises neither.
 
-**Blocker 1 — `data_progress`.** SOS gets `-61 ENODATA` on rxd. Bisecting SOS's hint set
+**Blocker 1, `data_progress`.** SOS gets `-61 ENODATA` on rxd. Bisecting SOS's hint set
 one field at a time isolates it to a single field: rxd refuses
 `FI_PROGRESS_AUTO` and accepts `FI_PROGRESS_MANUAL`. Everything else SOS sets
 (`FI_RMA|FI_ATOMIC`, basic MR, `FI_RM_ENABLED`, `mr_key_size=1`, `FI_THREAD_DOMAIN`,
@@ -92,7 +92,7 @@ SOS by instrumenting `query_for_fabric` to dump its own hints:
 
 `data_progress=2` is `FI_PROGRESS_MANUAL`, and `fi_getinfo` now succeeds.
 
-**Blocker 2 — the link-local GID. Found and fixed.** Past `fi_getinfo`, rxd failed at
+**Blocker 2, the link-local GID. Found and fixed.** Past `fi_getinfo`, rxd failed at
 startup with `populate_av: av insert failed`. Instrumenting the bulk `fi_av_insert` to
 retry one address at a time showed each PE inserting **its own** address and failing on
 the peer's:
@@ -134,7 +134,7 @@ which resolves over IP. For a two-line upstream report: on a RoCE v2 NIC whose G
 link-local, `verbs;ofi_rxd` is unusable at its default setting, using libfabric's own
 test binary.
 
-**Blocker 3 — RMA over rxd. Still open.** With manual progress and the routable GID, rxd
+**Blocker 3, RMA over rxd. Still open.** With manual progress and the routable GID, rxd
 initialises and the provider demonstrably moves data (5,521 MB/s on `fi_pingpong`, about
 68% of rxm's 8,154 MB/s at 1 MB). But SOS's one-sided path over rxd exhausts the retry
 limit at **2 PEs**, where rxm is untroubled:
