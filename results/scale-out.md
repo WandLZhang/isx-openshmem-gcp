@@ -10,24 +10,22 @@ estimates. Whoever gets the capacity should not have to re-derive any of this.
 | Peak resident / key array | 2.02x | allocations in `src/cpu/isx64_win.c` |
 | H4D usable memory per node | 1,440 GB | 1,464 GB total, less OS and symmetric heap |
 | GB300 memory per node | 2,076 GB | 1,116 GB HBM + 960 GB Grace, coherent |
-| GB200 memory per node | 1,628 GB | 744 GB HBM + 884 GB Grace |
 | H4D aggregate rate | 5.10 GB/s on 2 nodes | 192 PEs/node, flat over the top 3.4x |
 | GPU aggregate rate | 67.15 GB/s on 8 H200 | flat across a 64x data range |
 
-An endpoint is one OpenSHMEM PE on H4D and one GPU on GB200 and GB300. H4D runs 192 PEs
-per node, one per vCPU, validated 20/20.
+An endpoint is one OpenSHMEM PE on H4D and one GPU on GB300. H4D runs 192 PEs per node,
+one per vCPU, validated 20/20.
 
 ## Node counts
 
 Keys per node is `usable / 2.02`. Nodes is the larger of the memory requirement and the
-endpoint requirement. A4X capacity is allocated in fixed 18-node NVLink domains, so both
-A4X rows round up to a multiple of 18.
+endpoint requirement. A4X capacity is allocated in fixed 18-node NVLink domains, so the
+GB300 row rounds up to a multiple of 18.
 
 | machine | keys/node | 1 PB | 100 TB | endpoints at the 1 PB count |
 |---|---:|---:|---:|---:|
 | `h4d-highmem-192` | 713 GB | 1,403 | 140 | 269,376 PE |
 | `a4x-maxgpu-4g` (GB300) | 1,027 GB | 1,026 | 108 | 4,104 GPU |
-| `a4x-highgpu-4g` (GB200) | 806 GB | 1,242 | 126 | 4,968 GPU |
 
 GB300 at 1 PB is bound by the endpoint requirement rather than by memory: 1,026 nodes is
 57 NVL72 domains, 4,104 GPUs, and 2.13 PB against the 2.02 PB needed.
@@ -60,7 +58,6 @@ comparison is against that zone's unallocated pool.
 |---|---|---|
 | H4D | **impossible**, several times the best zone's free pool | fits |
 | GB300 | fits, comfortably | fits |
-| GB200 | just short | fits |
 
 **H4D cannot reach 1 PB under any capacity grant.** 1,403 nodes in one zone exceeds the
 unallocated pool of every zone worldwide, and a grant does not create machines that are

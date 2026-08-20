@@ -53,43 +53,35 @@ arrivals across every run. See [results/adaptive-routing.md](results/adaptive-ro
 project, and multi-node NVSHMEM does not work on Cloud RoCE: `ibdevx` registers GPU memory
 through dmabuf and then segfaults on the first cross-node put.
 
-### Node counts
+### Where the node counts come from
 
-Peak resident memory is 2.02x the key array, measured. Usable memory per node is the total
-less about 48 GB for OS and symmetric heap. Verdicts compare the node count against the
-unallocated pool of the best single zone.
+Peak resident memory is 2.02x the key array, measured. H4D usable memory is the 1,464 GB
+total less about 48 GB for OS and symmetric heap.
 
-| machine | mem/node | endpoints/node | 1 PB + 4,096 ep | 100 TB |
-|---|---:|---:|---|---|
-| `h4d-highmem-192` | 1,440 GB | 192 PE | 1,403 nodes, impossible | 140 nodes, fits |
-| `a4x-maxgpu-4g` (GB300) | 2,076 GB | 4 GPU | **1,026 nodes, fits** | 108 nodes, fits |
-| `a4x-highgpu-4g` (GB200) | 1,628 GB | 4 GPU | 1,242 nodes, just short | 126 nodes, fits |
+| | memory/node | endpoints/node | keys/node | 1 PB | 100 TB | 4,096 endpoints |
+|---|---:|---:|---:|---:|---:|---:|
+| `h4d-highmem-192` | 1,440 GB | 192 PE | 713 GB | 1,403 | 140 | **22** |
+| `a4x-maxgpu-4g-metal` | 2,076 GB | 4 GPU | 1,027 GB | **1,026** | 108 | 1,026 |
 
-A4X capacity comes in fixed 18-node NVLink domains, so both A4X rows round up to a multiple
-of 18. 1,026 nodes is 57 domains and 4,104 GPU endpoints. A4X Max refuses Spot, so it needs
-a reservation, which is also what makes Cluster Director topology visible.
+A4X capacity comes in fixed 18-node NVLink domains, so GB300 counts round up to a multiple
+of 18. 1,026 nodes is 57 domains and 4,104 GPUs, and it covers 1 PB and the endpoint count
+in the same run. A4X Max refuses Spot, so it needs a reservation, which is also what makes
+Cluster Director topology visible.
 
-**4,096 endpoints on H4D costs 22 nodes.** 192 PEs per node validated 20/20, and 22 nodes
-still hold 15.7 TB. The 100 TB run at 140 nodes gives 26,880 endpoints.
+1,403 H4D nodes in one zone is more than any zone holds unallocated. Free-pool size is not
+obtainability either: H4D returned `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone the supply data
+showed as mostly free.
 
-Free-pool size is not obtainability. H4D returned `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone
-the supply data showed as mostly free.
+### What can be run today
 
-### What today's quota buys
+| | quota | buys |
+|---|---|---:|
+| `h4d-highmem-192` | 500 vCPU, `CPUS_PER_VM_FAMILY` | 2 nodes |
+| `a3-ultragpu-8g` (H200) | 64 preemptible GPUs per region | 8 nodes |
+| TPU v6e | 512 on-demand per zone | quota for a full 256-chip pod, no capacity |
 
-Measured against the study project, 2026-08-20.
-
-| family | quota | buys | largest run |
-|---|---|---:|---|
-| `h4d-highmem-192` | 500 vCPU, `CPUS_PER_VM_FAMILY` | 2 nodes | 1,400 GB, 384 PEs |
-| `a3-ultragpu-8g` (H200) | 64 preemptible GPUs per region | 8 nodes | 137.4 GB, 8 GPUs, 1 node |
-| `a4-highgpu-8g` (B200) | 64 preemptible GPUs per region | 8 nodes | not run |
-| `a4x-highgpu-4g` (GB200) | entitled, no capacity | 0 | not run |
-| `a4x-maxgpu-4g-metal` (GB300) | **accelerator not allowlisted** | 0 | not run |
-| TPU v6e | 512 on-demand, 1,536 preemptible per zone | a full v6e-256 pod | 12.9 GB, 4 chips |
-
-GB300 fails on an accelerator allowlist before quota is consulted. TPU has ample quota and
-no capacity, and its ceiling is slice size rather than supply.
+GB300 cannot be created at all. `nvidia-gb300` is absent from the project's accelerator
+list, which fails before quota is consulted.
 
 ## What was measured
 
