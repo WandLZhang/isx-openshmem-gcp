@@ -175,16 +175,21 @@ tests/            single-PE shim for local correctness
 
 | topic | file |
 |---|---|
-| PSM3, and what it takes to run SOS on it | `results/h4d-psm3.md` |
-| The `ofi_rxm` connection limit | `results/rxm-connection-limit.md` |
-| GPU on H200 and A100, and the multi-node blocker | `results/gpu-nvshmem.md` |
-| Adaptive routing evidence | `results/adaptive-routing.md` |
-| TPU: ICI at 200 GB/s, and a 9x bucket fix | `results/tpu.md` |
-| Operational readiness, six tests | `results/operations.md` |
 | **What a team with capacity does next** | `docs/handoff.md` |
+| Requirements verbatim, with status | `GOAL.md` |
+| Design decisions and tradeoffs, deliverable 4 | `docs/architecture.md` |
+| PSM3, and what it takes to run SOS on it | `results/h4d-psm3.md` |
+| GPU on H200, and the multi-node blocker | `results/gpu-nvshmem.md` |
+| TPU: ICI at 200 GB/s, and a 9x bucket fix | `results/tpu.md` |
+| Adaptive routing evidence | `results/adaptive-routing.md` |
+| Operational readiness, six tests | `results/operations.md` |
+| Telemetry H4D does and does not expose | `results/telemetry.md` |
+| The `ofi_rxm` connection limit | `results/rxm-connection-limit.md` |
+| The `CPUS_PER_VM_FAMILY` cap | `results/h4d-capacity.md` |
+| Taking the dataset out of the symmetric heap | `results/windowed-exchange.md` |
+| Getting the footprint below 2.02x | `docs/streamed-exchange.md` |
 | Scaling to a petabyte | `docs/scale-out.md` |
 | Porting ISx to 64 bits | `docs/porting.md` |
-| Requirements verbatim, with status | `GOAL.md` |
 
 Upstream issues filed: [ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673),
 [Sandia-OpenSHMEM/SOS#1239](https://github.com/Sandia-OpenSHMEM/SOS/issues/1239).
