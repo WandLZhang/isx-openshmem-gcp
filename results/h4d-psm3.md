@@ -3,39 +3,32 @@
 2026-08-19. Two `h4d-highmem-192`, us-east1-b. libfabric 2.6.0 built with `--enable-psm3`,
 Sandia OpenSHMEM with one source patch.
 
-PSM3 is the fabric provider Google qualifies for H4D. Earlier work in this repository used
-`verbs;ofi_rxm`. The two behave differently enough that every transport conclusion changes.
+PSM3 is the fabric provider Google qualifies for H4D. It implements no connection
+management, so nothing in job setup grows with the square of the process count.
 
 ## Connection scaling
 
-Round 0 of `tools/repro-rxm-livelock.c` pays for connection setup. Its growth rate is the
-measurement that matters.
+Round 0 of `tools/repro-rxm-livelock.c` pays for connection setup.
 
-| PEs/node | total PEs | `verbs;ofi_rxm` | `psm3` |
-|---:|---:|---:|---:|
-| 4 | 8 | 0.026 s | 0.021 s |
-| 16 | 32 | 0.368 s | 0.248 s |
-| 32 | 64 | — | 0.382 s |
-| 64 | 128 | **6.193 s** | **0.759 s** |
+| PEs/node | total PEs | round 0 |
+|---:|---:|---:|
+| 4 | 8 | 0.021 s |
+| 16 | 32 | 0.248 s |
+| 32 | 64 | 0.382 s |
+| 64 | 128 | 0.759 s |
 
 From 16 to 64 PEs per node, a 4x increase in processes and a 16x increase in
-`PEs_per_node × total_PEs`:
-
-- `verbs;ofi_rxm` round 0 grows **16.8x**, tracking the connection count
-- `psm3` round 0 grows **3.1x**, tracking the process count
-
-The superlinear term is gone. PSM3 implements no connection management, so there is no
-per-peer state to establish and nothing that grows with the square of the job.
+`PEs_per_node x total_PEs`, round 0 grows **3.1x**. It tracks the process count rather than
+the connection count, because there are no connections to establish.
 
 ## Reproducibility
 
 ISx64, 20 consecutive unattended runs at each shape.
 
-| provider | PEs/node | validated |
-|---|---:|---|
-| `verbs;ofi_rxm` | 64 | 7/20 and 9/20 |
-| `psm3` | 64 | **20/20** |
-| `psm3` | **192** | **20/20** |
+| PEs/node | validated |
+|---:|---|
+| 64 | **20/20** |
+| **192** | **20/20** |
 
 ## Density
 
@@ -75,9 +68,6 @@ Rate rises to 5.1 GB/s and holds there over the top 3.4x of the range. Density i
 |---:|---:|---:|
 | 32 | 1,099.5 GB | 1.50 GB/s |
 | **192** | **1,400.0 GB** | **5.10 GB/s** |
-
-The largest run on `verbs;ofi_rxm` was 8.59 GB. This is **163x** that, at **3.4x** the rate,
-on the same two machines.
 
 The exchange is 84-88% of runtime throughout. On 200 Gbps RoCE the network is the bound,
 which is the opposite of the GPU path where bucketing dominates and the exchange is 10%.
