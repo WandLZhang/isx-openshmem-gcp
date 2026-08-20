@@ -16,7 +16,7 @@
  * i, PE p sends to (p + i) % n, so every PE targets a distinct destination and receives
  * from one sender per step. The symmetric window is therefore ONE slot rather
  * than one per peer: WINDOW * 8 bytes per PE instead of NUM_PES * WINDOW * 8. At 4,096
- * endpoints that is 128 KB instead of 512 MB. See docs/streamed-exchange.md.
+ * endpoints that is 128 KB instead of 512 MB. See results/windowed-exchange.md.
  *
  * NVLINK DOMAIN SIZE. NVLink tops out at 72 GPUs. Above that, NVSHMEM falls back to RoCE
  * between domains and the network re-enters the picture. At 4,096 endpoints that is 57

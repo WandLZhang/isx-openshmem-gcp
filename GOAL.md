@@ -75,8 +75,8 @@ Measured on two `h4d-highmem-192`, eight H200 in one node, and four TPU v6e chip
 | Deliverable 1, source | **met.** CPU, GPU and TPU implementations, plus `deploy/h4d/sos-psm3-stx.patch` |
 | Deliverable 2, provisioning recipe | **met and exercised.** `deploy/h4d`, plus `deploy/gb300` as a handoff package |
 | Deliverable 3, execution artifacts | **met.** Time to solution and phase breakdown throughout, raw logs in `results/raw`. No byte counter on H4D tracks RoCE, so bandwidth is derived |
-| Deliverable 4, architectural narrative | **met.** `docs/architecture.md` |
-| Deliverable 5, failure analysis | **met.** `results/`, and `docs/handoff.md` for what no grant can fix |
+| Deliverable 4, architectural narrative | **met.** `the README` |
+| Deliverable 5, failure analysis | **met.** `results/`, and `the README` for what no grant can fix |
 
 ## What reaching the target requires
 
@@ -94,5 +94,5 @@ engineering.
 ## Scope note
 
 The full-scale demonstration is not in this repository. Reaching it needs a capacity grant
-that has not been made. Everything else is measured. `docs/handoff.md` says what a team
-with capacity does next, and `docs/scale-out.md` carries the arithmetic.
+that has not been made. Everything else is measured. `the README` says what a team
+with capacity does next, and `results/scale-out.md` carries the arithmetic.

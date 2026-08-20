@@ -7,7 +7,7 @@
  * The algorithm is unchanged from upstream: generate uniform keys, bucket them by
  * destination PE, push each bucket into the destination's symmetric heap with one-sided
  * puts, sort locally, verify. What changed is every place where upstream assumed the key
- * and the counters fit in 32 bits. docs/porting.md lists each one.
+ * and the counters fit in 32 bits. results/porting.md lists each one.
  *
  * Communication is shmem_uint64_put plus shmem_atomic_fetch_add. There is no MPI in this
  * program and no two-sided operation anywhere: a PE writes into a peer's memory without
