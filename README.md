@@ -33,25 +33,19 @@ customer's requirements verbatim.
 | Per-packet adaptive routing | **no, by design** | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
 | Operational plausibility | met | met | package shipped, one blocker |
 
-**Supply.** H4D at 1 PB needs 1,403 nodes in one zone, because Cloud RDMA cannot cross
-zones, and that is more than any zone holds unallocated. The machines would work if they
-existed. The largest H4D run on record is 192 nodes.
+**Supply.** H4D at 1 PB needs 1,403 nodes in one zone, and no zone holds that many
+unallocated. The machines would work if they existed.
 
 **Architecture.** TPU has no PGAS and no remote put, so the one-sided requirement cannot be
-met on any generation, and no grant changes that.
-
-A job cannot span slices over ICI, so slice size caps the data. TPU7x is the largest:
-192 GiB per chip across 9,216 chips, 1,900 TB of HBM. 100 TB needs 980 chips and 4,096
-endpoints is well inside one slice, so both fit. 1 PB needs 2,020 TB resident and misses by
-6%, which a footprint below 1.9x would close.
+met on any generation, and no grant changes that. See [results/tpu.md](results/tpu.md).
 
 **Design.** Falcon uses multipath subflows rather than per-packet spraying, because
 per-packet routing reorders packets and RoCE treats reordering as loss. Zero out-of-order
 arrivals across every run. See [results/adaptive-routing.md](results/adaptive-routing.md).
 
-**GB300** reaches the full target at 1,026 nodes. `nvidia-gb300` is not allowlisted on this
-project, and multi-node NVSHMEM does not work on Cloud RoCE: `ibdevx` registers GPU memory
-through dmabuf and then segfaults on the first cross-node put.
+**GB300** reaches the full target at 1,026 nodes. Two things block it today:
+`nvidia-gb300` is not allowlisted on this project, and multi-node NVSHMEM does not work on
+Cloud RoCE. See [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
 
 ### Where the node counts come from
 
