@@ -113,9 +113,9 @@ TPU paths are bound by bucketing, with their exchanges at 10% and 0.1%.
 
 TPU is not responsive to the OpenSHMEM requirement, since there is no remote put. It
 answers one thing the others cannot: the ICI exchange runs at **200 GB/s** and is 0.1% of
-the step, so a TPU sort number that puts one timer around "exchange and bucket sorting" is
-reporting bucket time. Replacing the bucket scatter with a gather made it 9.0x faster.
-See [results/tpu.md](results/tpu.md).
+the step. A single timer wrapped around the exchange and the sorts together is therefore
+not an ICI measurement, whichever of the two dominates. Replacing the bucket scatter with a
+gather made the step 9.0x faster. See [results/tpu.md](results/tpu.md).
 
 **Multi-node NVSHMEM does not work on Google Cloud RoCE with the packaged build.** The
 fabric is fine: `ib_write_bw` moves 45 GB/s host to host on one of eight NICs. GPU memory

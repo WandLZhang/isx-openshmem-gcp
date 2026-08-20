@@ -48,9 +48,11 @@ chip:
 **The ICI exchange moves 0.70 GB at 200 GB/s and is 0.1% of the step.** Local bucketing is
 everything else.
 
-This matters for reading other TPU sort numbers. A report that puts one timer around
-"exchange and bucket sorting" is almost entirely reporting bucket time, and says nothing
-about ICI.
+This matters for reading other TPU sort numbers. A timer wrapped around the exchange and
+the local phases together divided by the bytes moved gives a figure labelled GB/s that is
+not an ICI measurement, because the exchange is a small fraction of what the timer covers.
+Which local phase dominates depends on the implementation: bucketing here, the two full
+sorts in the reference implementation described in `notes/`.
 
 ## Making the bucket cheap
 
