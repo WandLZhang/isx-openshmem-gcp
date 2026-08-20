@@ -70,7 +70,7 @@ Measured on two `h4d-highmem-192`, eight H200 in one node, and four TPU v6e chip
 | Correctness | **met.** 1,400 GB on H4D, 137.4 GB on 8 H200, 12.9 GB on 4 v6e chips |
 | Reproducibility | **met.** 20/20 at 192 PEs per node on PSM3 |
 | Performance stability | **met.** H4D 5.10 GB/s, GPU 67.15 GB/s, TPU 0.25 GB/s, each flat across its range |
-| >= 4,096 endpoints | **not run, reachable.** 22 H4D nodes at 192 PEs, 1,026 GB300 nodes, or a 16x16x16 TPU v5p slice |
+| >= 4,096 endpoints | **not run, reachable.** 22 H4D nodes at 192 PEs, 1,026 GB300 nodes, or 4,096 chips of a TPU7x slice |
 | > 1 PB in memory | **not run, reachable on GB300 only.** 1,026 nodes. H4D needs 1,403 in one zone, more than any zone holds free. TPU misses by 6%, 1,900 TB of HBM in the largest TPU7x topology against 2,020 TB resident |
 | Deliverable 1, source | **met.** CPU, GPU and TPU implementations, plus `deploy/h4d/sos-psm3-stx.patch` |
 | Deliverable 2, provisioning recipe | **met and exercised.** `deploy/h4d`, plus `deploy/gb300` as a handoff package |

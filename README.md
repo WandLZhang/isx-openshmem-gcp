@@ -26,8 +26,8 @@ customer's requirements verbatim.
 | Reproducibility | met, 20/20 | met, within 0.1% | not run multi-node |
 | Performance stability | met, 5.10 GB/s flat | met, 0.25 GB/s flat | met on 1 node |
 | Scale, >1 PB | **no, supply** | **no, architecture**, short by 6% | **yes**, 1,026 nodes |
-| Scale, 100 TB | **yes**, 140 nodes | **yes on v5p**, about 2,048 chips | **yes**, 108 nodes |
-| Scale, 4,096 endpoints | **yes**, 22 nodes | **yes on v5p**, a 16x16x16 slice | **yes**, 4,104 GPUs |
+| Scale, 100 TB | **yes**, 140 nodes | **yes**, 980 chips | **yes**, 108 nodes |
+| Scale, 4,096 endpoints | **yes**, 22 nodes | **yes**, well inside one slice | **yes**, 4,104 GPUs |
 | OpenSHMEM one-sided PGAS | met | **no, architecture** | qualifies, blocked across nodes |
 | Connectionless fabric | met, PSM3 | n/a | unproven |
 | Per-packet adaptive routing | **no, by design** | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
@@ -40,11 +40,10 @@ existed. The largest H4D run on record is 192 nodes.
 **Architecture.** TPU has no PGAS and no remote put, so the one-sided requirement cannot be
 met on any generation, and no grant changes that.
 
-A job cannot span slices over ICI, so slice size caps the data. v6e tops out at 256 chips
-and reaches neither target. **v5p reaches both the endpoint count and 100 TB**: 95 GiB per
-chip, a 16x16x16 slice is 4,096 chips, which matches the requirement, and it holds about
-207 TB of keys at the measured 2.02x footprint. 1 PB needs 2,020 TB resident against
-1,900 TB in the largest TPU7x topology, a 6% miss that a footprint below 1.9x would close.
+A job cannot span slices over ICI, so slice size caps the data. TPU7x is the largest:
+192 GiB per chip across 9,216 chips, 1,900 TB of HBM. 100 TB needs 980 chips and 4,096
+endpoints is well inside one slice, so both fit. 1 PB needs 2,020 TB resident and misses by
+6%, which a footprint below 1.9x would close.
 
 **Design.** Falcon uses multipath subflows rather than per-packet spraying, because
 per-packet routing reorders packets and RoCE treats reordering as loss. Zero out-of-order
@@ -157,7 +156,7 @@ Selecting on what the fabric must do rather than on the named hardware:
 | a4x (GB200, GB300) | RoCE | 960 GB + 186 GB HBM/GPU | the scale path; needs a reservation and an accelerator allowlist |
 | a3-ultra (H200) | RoCE | 3,072 GB | used as the NVLink stand-in for GB300 |
 | x4, m4 | none | up to 32 TB | fails the fabric requirement outright |
-| TPU v6e, v7x | ICI, not RDMA | 32 or 192 GB HBM/chip | no PGAS; compiler collectives only |
+| TPU7x | ICI, not RDMA | 192 GiB HBM/chip | no PGAS; compiler collectives only |
 
 h4d is the compliance path and a4x is the scale path.
 
@@ -357,24 +356,18 @@ a 6x range. The ICI exchange runs at 200 GB/s and is 0.1% of the step, while buc
 97.4%.
 
 A job cannot span slices over ICI, so slice size is the ceiling and no grant moves it.
+TPU7x is the largest slice available: 192 GiB per chip across 9,216 chips, 1,900 TB of HBM,
+1,200 GB/s of ICI per chip.
 
-| | v6e | v5p | TPU7x |
-|---|---|---|---|
-| HBM per chip | 32 GiB | 95 GiB | 192 GiB |
-| Largest schedulable slice | 256 chips | 6,144 chips | 2,048 listed, 9,216 by topology |
-| 100 TB | **no**, needs 121 full pods | **yes**, about 2,048 chips | yes |
-| 1 PB | **no** | **no**, 310 TB at 6,144 chips | **no**, 1,900 TB raw against 2,020 TB needed |
-| 4,096 endpoints | **no**, max slice is 256 | **yes**, a 16x16x16 slice | yes |
-| OpenSHMEM one-sided | **no**, no PGAS on TPU | same | same |
+| target | chips needed at 2.02x | verdict |
+|---|---:|---|
+| 100 TB | 980 | fits |
+| 4,096 endpoints | 4,096 | fits |
+| 1 PB | 9,798 | **misses by 6%** against a 9,216-chip slice |
 
-**v5p is the generation to use.** A 16x16x16 slice is 4,096 chips, which meets the
-endpoint criterion, and it holds about 207 TB of keys at the measured 2.02x footprint, so it
-clears 100 TB with headroom in the same run. v5p supports multi-host slice node pools in
-GKE, and slices of 1,024 chips and similar have been obtained that way in unrelated work.
-
-1 PB stays out of reach. It needs 2,020 TB resident and the largest TPU7x topology holds
-1,900 TB, so the miss is 6% rather than an order of magnitude. A footprint below 1.9x would
-close it, and `results/windowed-exchange.md` has the design for 1.15x.
+The footprint decides the last row. At the 1.15x design footprint in
+`results/windowed-exchange.md`, 1 PB needs 5,578 chips and fits inside the same 9,216-chip
+slice.
 
 To run it: submit on-demand queued resources and wait, because Spot did not convert in 141
 attempts while on-demand landed 2 of 7. Switch the exchange to ragged `all_to_all`, since
