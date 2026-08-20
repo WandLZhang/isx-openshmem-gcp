@@ -47,36 +47,6 @@ arrivals across every run. See [results/adaptive-routing.md](results/adaptive-ro
 `nvidia-gb300` is not allowlisted on this project, and multi-node NVSHMEM does not work on
 Cloud RoCE. See [results/gpu-nvshmem.md](results/gpu-nvshmem.md).
 
-### Where the node counts come from
-
-Peak resident memory is 2.02x the key array, measured. H4D usable memory is the 1,464 GB
-total less about 48 GB for OS and symmetric heap.
-
-| | memory/node | endpoints/node | keys/node | 1 PB | 100 TB | 4,096 endpoints |
-|---|---:|---:|---:|---:|---:|---:|
-| `h4d-highmem-192` | 1,440 GB | 192 PE | 713 GB | 1,403 | 140 | **22** |
-| `a4x-maxgpu-4g-metal` | 2,076 GB | 4 GPU | 1,027 GB | **1,026** | 108 | 1,026 |
-
-A4X capacity comes in fixed 18-node NVLink domains, so GB300 counts round up to a multiple
-of 18. 1,026 nodes is 57 domains and 4,104 GPUs, and it covers 1 PB and the endpoint count
-in the same run. A4X Max refuses Spot, so it needs a reservation, which is also what makes
-Cluster Director topology visible.
-
-1,403 H4D nodes in one zone is more than any zone holds unallocated. Free-pool size is not
-obtainability either: H4D returned `ZONE_RESOURCE_POOL_EXHAUSTED` in a zone the supply data
-showed as mostly free.
-
-### What can be run today
-
-| | quota | buys |
-|---|---|---:|
-| `h4d-highmem-192` | 500 vCPU, `CPUS_PER_VM_FAMILY` | 2 nodes |
-| `a3-ultragpu-8g` (H200) | 64 preemptible GPUs per region | 8 nodes |
-| TPU v6e | 512 on-demand per zone | quota for a full 256-chip pod, no capacity |
-
-GB300 cannot be created at all. `nvidia-gb300` is absent from the project's accelerator
-list, which fails before quota is consulted.
-
 ## What was measured
 
 | | CPU, H4D | GPU, H200 | TPU, v6e |
@@ -446,7 +416,7 @@ tests/            single-PE shim for local correctness
 | The `ofi_rxm` connection limit | `results/rxm-connection-limit.md` |
 | The `CPUS_PER_VM_FAMILY` cap | `results/h4d-capacity.md` |
 | Memory footprint, and getting it below 2.02x | `results/windowed-exchange.md` |
-| Scaling to a petabyte | `results/scale-out.md` |
+| Node counts, quota, and scaling to a petabyte | `results/scale-out.md` |
 | Porting ISx to 64 bits, change by change | `results/porting.md` |
 
 Upstream issues filed: [ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673),

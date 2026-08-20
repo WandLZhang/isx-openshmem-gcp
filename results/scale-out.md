@@ -49,6 +49,19 @@ Request placement with the capacity, not after.
 NVLink spans 72 GPUs, so at 4,104 endpoints 56/57 of the all-to-all leaves its domain.
 Domain-aware bucketing needs the topology, and Cluster Director is where it comes from.
 
+## What can be run today
+
+Measured against the study project, 2026-08-20.
+
+| | quota | buys |
+|---|---|---:|
+| `h4d-highmem-192` | 500 vCPU, `CPUS_PER_VM_FAMILY` | 2 nodes |
+| `a3-ultragpu-8g` (H200) | 64 preemptible GPUs per region | 8 nodes |
+| TPU v6e | 512 on-demand per zone | quota for a full 256-chip pod, no capacity |
+
+GB300 cannot be created at all. `nvidia-gb300` is absent from the project's accelerator
+list, which fails before quota is consulted.
+
 ## Against available capacity
 
 Cloud RDMA and NVLink are both intra-zone, so the whole job lands in one zone and the
