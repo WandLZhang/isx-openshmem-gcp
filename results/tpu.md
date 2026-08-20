@@ -85,28 +85,36 @@ device with `jax.random.fold_in` inside `shard_map`.
 ## Can either target be reached on TPU
 
 A TPU slice is one ICI-connected unit and a job cannot span slices over ICI. So the ceiling
-is slice size, not supply, and no capacity grant moves it.
+is slice size, not supply, and no capacity grant moves it. Which generation you pick decides
+most of the answer.
 
-| | v6e | TPU7x |
-|---|---:|---:|
-| HBM per chip | 32 GB | 192 GB |
-| Max chips per slice | 256 | 9,216 |
-| Raw HBM per slice | 8.2 TB | 1.77 PB |
-| Keys held, at the measured 3.2 GB/chip | 0.8 TB | 1.8 TB |
-| Keys held, at a 2.02x footprint | 4.1 TB | 876 TB |
+| | v6e | v5p | TPU7x |
+|---|---:|---:|---:|
+| HBM per chip | 32 GiB | 95 GiB | 192 GiB |
+| Largest schedulable slice | 256 | 6,144 | 2,048 listed, 9,216 by topology |
+| Raw HBM in that slice | 8.6 TB | 627 TB | 1,900 TB |
+| Keys held at the 2.02x footprint | 4.2 TB | 310 TB | 941 TB |
+| ICI topology | 2D torus | 3D torus | 3D torus |
 
-**Neither target is reachable on v6e.** 100 TB needs 121 full v6e-256 pods even at the raw
-HBM limit, and the largest slice is one pod.
+**v6e reaches neither target.** 256 chips is 4.2 TB of keys and 256 endpoints.
 
-**On TPU7x, 100 TB fits and 1 PB does not.** 100 TB needs about 1,050 chips at a 2.02x
-footprint, inside a 2,048-chip slice, and 4,096 endpoints needs a slice at least that
-large, so both constraints are satisfied together. 1 PB needs 2.02 PB resident against
-1.77 PB of HBM in the largest slice that exists.
+**v5p reaches both the endpoint count and 100 TB, in the same run.** A 16x16x16 slice is
+4,096 chips exactly, which satisfies the endpoint criterion, and it holds about 207 TB of
+keys, so 100 TB fits with headroom. 100 TB on its own needs about 2,048 chips. Slice shapes
+are 3-tuples with A <= B <= C, multiples of four above 64 chips, up to 16x16x24.
 
-Two caveats on the TPU7x row. The 2.02x footprint is the CPU implementation's, measured;
-this JAX version runs at about 3.2 GB per 32 GB chip because the padded exchange buffer is
-held twice. Ragged `all_to_all` is the fix and is available in this JAX, untested here.
-Nothing about TPU7x in this table is measured.
+v5p also supports multi-host slice node pools in GKE, and slices of 1,024 chips and similar
+have been obtained that way in unrelated work, so this is not only a spec-sheet claim.
+
+**1 PB is out of reach, but by 6% rather than an order of magnitude.** It needs 2,020 TB
+resident and the largest TPU7x topology holds 1,900 TB. A resident footprint below 1.9x
+would close the gap, and `windowed-exchange.md` carries the design for 1.15x. Note also
+that the configuration tables list 2,048 chips as the largest TPU7x slice, against 9,216 by
+topology, so the schedulable number may be well below the arithmetic above.
+
+Two caveats. The 2.02x footprint is the CPU implementation's, measured; this JAX version
+runs at about 3.2 GB per 32 GB chip because the padded exchange buffer is held twice, and
+ragged `all_to_all` is the fix. Nothing about v5p or TPU7x in this table is measured.
 
 ## Against the success criteria
 
@@ -115,12 +123,13 @@ Nothing about TPU7x in this table is measured.
 | Correctness | met, 4 sizes |
 | Reproducibility | met, repeat runs within 0.1% |
 | Performance stability | met, flat 0.25 GB/s over 6x |
-| Scale | 12.88 GB of 1 PB, on 4 chips |
+| Scale | 12.88 GB on 4 v6e chips. 100 TB and 4,096 endpoints both reachable on v5p; 1 PB on no generation |
 | OpenSHMEM one-sided | **not met, and not meetable**. TPU has no PGAS |
 
 ## What a larger slice would answer
 
-The two open questions both need more chips, not more time.
+The two open questions both need more chips, not more time, and v5p is the practical way
+to get them: multi-host slice node pools in GKE, 95 GiB per chip, shapes up to 16x16x24.
 
 1. **Does the exchange stay at 200 GB/s past one host?** 4 chips share a host. ICI between
    hosts is the number that matters and this cannot see it.

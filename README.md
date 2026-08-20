@@ -20,13 +20,14 @@ customer's requirements verbatim.
 
 ## Results
 
-| | H4D, OpenSHMEM/PSM3 | TPU v6e, JAX | GB300, NVSHMEM |
+| | H4D, OpenSHMEM/PSM3 | TPU, JAX | GB300, NVSHMEM |
 |---|---|---|---|
-| Correctness | met, 1,400 GB | met, 12.9 GB | met on 8 x H200, 1 node |
+| Correctness | met, 1,400 GB | met, 12.9 GB on v6e-4 | met on 8 x H200, 1 node |
 | Reproducibility | met, 20/20 | met, within 0.1% | not run multi-node |
 | Performance stability | met, 5.10 GB/s flat | met, 0.25 GB/s flat | met on 1 node |
-| Scale, >1 PB | **no, supply** | **no, architecture** | **yes**, 1,026 nodes |
-| Scale, 4,096 endpoints | **yes**, 22 nodes | **no on v6e**, yes on TPU7x | **yes**, 4,104 GPUs |
+| Scale, >1 PB | **no, supply** | **no, architecture**, short by 6% | **yes**, 1,026 nodes |
+| Scale, 100 TB | **yes**, 140 nodes | **yes on v5p**, about 2,048 chips | **yes**, 108 nodes |
+| Scale, 4,096 endpoints | **yes**, 22 nodes | **yes on v5p**, a 16x16x16 slice | **yes**, 4,104 GPUs |
 | OpenSHMEM one-sided PGAS | met | **no, architecture** | qualifies, blocked across nodes |
 | Connectionless fabric | met, PSM3 | n/a | unproven |
 | Per-packet adaptive routing | **no, by design** | n/a, ICI is a static torus | unknown, ConnectX-8 untested |
@@ -39,9 +40,14 @@ zones, and that is more than any zone holds unallocated. The machines would work
 existed. The largest H4D run on record is 192 nodes.
 
 **Architecture.** TPU has no PGAS and no remote put, so the one-sided requirement cannot be
-met. A job cannot span slices over ICI either, so the largest slice that exists, TPU7x at
-9,216 chips, holds 1.77 PB against the 2.02 PB the sort needs resident. No grant changes
-either fact.
+met on any generation. That is the permanent one.
+
+The scale rows are close rather than categorical, and the generation matters. A job cannot
+span slices over ICI, so slice size is the ceiling. v6e tops out at 256 chips and reaches
+neither target. **v5p reaches both the endpoint count and 100 TB**: 95 GiB per chip, a
+16x16x16 slice is 4,096 chips exactly, and it holds about 207 TB of keys at the measured
+2.02x footprint. 1 PB needs 2,020 TB resident, and the largest TPU7x topology holds
+1,900 TB, so it misses by 6%. A footprint below 1.9x would close that gap.
 
 **Design.** Falcon uses multipath subflows rather than per-packet spraying, because
 per-packet routing reorders packets and RoCE treats reordering as loss. Zero out-of-order
@@ -356,19 +362,34 @@ a 6x range. The ICI exchange runs at 200 GB/s and is 0.1% of the step, while buc
 97.4%.
 
 A job cannot span slices over ICI, so slice size is the ceiling and no grant moves it.
+Which generation you pick decides three of the four rows.
 
-| | v6e | TPU7x |
-|---|---|---|
-| 100 TB | **impossible**, needs 121 full v6e-256 pods | reachable, about 1,050 chips |
-| 1 PB | **impossible** | **impossible**, 2.02 PB resident against 1.77 PB in the largest slice |
-| 4,096 endpoints | **impossible**, max slice is 256 chips | reachable |
-| OpenSHMEM one-sided | **impossible**, no PGAS on TPU | same |
+| | v6e | v5p | TPU7x |
+|---|---|---|---|
+| HBM per chip | 32 GiB | 95 GiB | 192 GiB |
+| Largest schedulable slice | 256 chips | 6,144 chips | 2,048 listed, 9,216 by topology |
+| 100 TB | **no**, needs 121 full pods | **yes**, about 2,048 chips | yes |
+| 1 PB | **no** | **no**, 310 TB at 6,144 chips | **no**, 1,900 TB raw against 2,020 TB needed |
+| 4,096 endpoints | **no**, max slice is 256 | **yes**, a 16x16x16 slice | yes |
+| OpenSHMEM one-sided | **no**, no PGAS on TPU | same | same |
 
-If a TPU7x slice is wanted anyway: submit on-demand queued resources and wait, because Spot
-did not convert in 141 attempts while on-demand landed 2 of 7. Switch the exchange to
-ragged `all_to_all`, since the padded buffer is held twice and is why the current code uses
-about 3.2 GB of a 32 GB chip. Then re-measure the phase split across more than one host,
-because 200 GB/s is 4 chips sharing a host and says nothing about inter-host ICI.
+**v5p is the generation to use.** A 16x16x16 slice is 4,096 chips exactly, which meets the
+endpoint criterion, and it holds about 207 TB of keys at the measured 2.02x footprint, so it
+clears 100 TB with headroom in the same run. v5p supports multi-host slice node pools in
+GKE, and slices of 1,024 chips and similar have been obtained that way in unrelated work,
+so this is an obtainability data point rather than a spec sheet claim.
+
+1 PB stays out of reach. It needs 2,020 TB resident and the largest TPU7x topology holds
+1,900 TB, so the miss is 6% rather than an order of magnitude. A footprint below 1.9x would
+close it, and `results/windowed-exchange.md` has the design for 1.15x.
+
+To run it: submit on-demand queued resources and wait, because Spot did not convert in 141
+attempts while on-demand landed 2 of 7. Switch the exchange to ragged `all_to_all`, since
+the padded buffer is held twice and is why the current code uses about 3.2 GB of a 32 GB
+chip. Then re-measure the phase split across more than one host, because 200 GB/s is 4
+chips sharing a host and says nothing about inter-host ICI.
+
+None of this makes TPU responsive to the brief. It has no remote put.
 
 ### GB300
 
