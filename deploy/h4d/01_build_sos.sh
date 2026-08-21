@@ -123,14 +123,13 @@ export PSM3_ALLOW_ROUTERS=1
 # Every rank in a job must share one UUID. Deriving it from the job id keeps
 # concurrent jobs apart.
 export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "${SLURM_JOB_ID:-1}")
-export FI_OFI_RXM_SAR_LIMIT=2147483648
-
-# Must equal total rank count; RxM sizes its address vector from it. Too small and
-# address resolution fails partway through a large all-to-all rather than at startup.
+# Some providers size internal address tables from this. run_isx64.sh sets it to the job's
+# own rank count, which is what you want. This default only covers a bare shell.
 : "${FI_UNIVERSE_SIZE:=4096}"; export FI_UNIVERSE_SIZE
 
-# ISx64 sizes its receive buffer from keys-per-PE, so the heap needs at least
-# keys_per_pe * 8 * 1.2 per PE.
+# 16G is the isx64 figure. isx64 holds its receive buffer in the symmetric heap, so the heap
+# needs about keys_per_pe * 8 * 1.2 per PE. isx64_win does not: its window is about 0.5 MB
+# per PE whatever the dataset, and run_isx64.sh sets 1G for it.
 export SHMEM_SYMMETRIC_SIZE="${SHMEM_SYMMETRIC_SIZE:-16G}"
 
 # SHMEM_INFO=1 prints the selected transport at startup. Worth setting for the first

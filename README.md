@@ -227,13 +227,17 @@ bash deploy/h4d/run_isx64.sh <nodes> <pes_per_node> <keys_per_pe>
 retries. It launches with `srun --mpi=pmi2`; outside Slurm, install `mpich` and use
 `mpiexec.hydra`, because `oshrun` has no launcher on a bare VM.
 
-Both target runs fill the nodes, so keys per PE is the same either way: 22 nodes gives
-4,224 endpoints and 15.7 TB, 140 nodes gives 100 TB.
+Both target runs fill the nodes, so keys per PE is the same either way. 455,729,166 is the
+largest per-node dataset validated: 700 GB of keys per node, 1,414 GB resident at the 2.02x
+footprint, against about 1,440 GB usable.
 
 ```bash
-bash deploy/h4d/run_isx64.sh  22 192 464300000   # 4,096 endpoints, 15.7 TB
-bash deploy/h4d/run_isx64.sh 140 192 465029017   # 100 TB
+bash deploy/h4d/run_isx64.sh  22 192 455729166   # 4,096 endpoints, 15.4 TB
+bash deploy/h4d/run_isx64.sh 143 192 455729166   # 100.1 TB
 ```
+
+`deploy/h4d/run_ladder.sh` runs the whole weak-scaling ladder and the target in one command.
+`deploy/h4d/README.md` is the runbook for a benchmarking team with its own capacity.
 
 ### On GB300
 

@@ -14,7 +14,24 @@ PPN=${2:?pes per node}
 KEYS=${3:?keys per pe}
 ATTEMPTS=${4:-5}
 
-BIN=${ISX64_BIN:-$HOME/bin/isx64win}
+# `make -C src/cpu` writes bin/isx64_win at the repo root. Older notes said to copy it to
+# ~/bin/isx64win, so accept both and say which paths were tried if neither is there.
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+if [ -n "${ISX64_BIN:-}" ]; then
+  BIN=$ISX64_BIN
+elif [ -x "$REPO/bin/isx64_win" ]; then
+  BIN=$REPO/bin/isx64_win
+elif [ -x "$HOME/bin/isx64win" ]; then
+  BIN=$HOME/bin/isx64win
+else
+  echo "no isx64_win binary. Tried:" >&2
+  echo "  \$ISX64_BIN        (${ISX64_BIN:-unset})" >&2
+  echo "  $REPO/bin/isx64_win" >&2
+  echo "  $HOME/bin/isx64win" >&2
+  echo "Build it with: source /opt/isx/env.sh && make -C $REPO/src/cpu" >&2
+  exit 2
+fi
+
 # Must match PREFIX in 01_build_sos.sh.
 PREFIX=${SOS_PREFIX:-/opt/isx}
 OUT=${ISX64_OUT:-$HOME/isx64_results}
@@ -28,6 +45,9 @@ export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "${SLURM_JOB_ID:-1}
 # dataset. 1G is ample at 192 PEs per node.
 export SHMEM_SYMMETRIC_SIZE=${SHMEM_SYMMETRIC_SIZE:-1G}
 export SHMEM_BOOTSTRAP=${SHMEM_BOOTSTRAP:-PMI}
+# Some providers size internal address tables from this. Set it to the rank count so it is
+# never below. Untested above 2 nodes.
+export FI_UNIVERSE_SIZE=${FI_UNIVERSE_SIZE:-$((NODES * PPN))}
 
 # 1.4 TB on two nodes takes 275 s, and time scales with keys per node. Raise this for a
 # large run rather than letting a healthy job get killed.

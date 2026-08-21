@@ -109,12 +109,17 @@ export PSM3_UUID=$(printf '%08x-0000-0000-0000-000000000000' "$SLURM_JOB_ID")
 export SHMEM_SYMMETRIC_SIZE=1G
 export SHMEM_BOOTSTRAP=PMI
 
-srun -N140 --ntasks-per-node=192 --mpi=pmi2 --export=ALL \
-     ./isx64win 465029017 1 results/run
+srun -N143 --ntasks-per-node=192 --mpi=pmi2 --export=ALL \
+     ./isx64_win 455729166 1 results/run
 ```
 
-`keys_per_pe` is `total_keys / (nodes * 192)`. 100 TB is 1.25e13 keys, so 140 nodes at 192
-PEs gives 4.65e8 per PE.
+455,729,166 keys per PE is the largest per-node dataset validated: 700 GB of keys per node,
+1,414 GB resident at the 2.02x footprint, against about 1,440 GB usable. At 143 nodes that
+is 100.1 TB.
+
+Sizing from the target instead gives 465,029,017 for 140 nodes, which is 714.3 GB of keys
+per node and 1,442.9 GB resident. That is about 3 GB per node over usable, so it fails to
+allocate. Round the node count up rather than the dataset per node.
 
 SOS needs `deploy/h4d/sos-psm3-stx.patch` before it will start on PSM3. The blueprint
 node count is `h4d_cluster_size` in `deploy/h4d/isx-slurm-h4d.yaml`, and Cloud RDMA cannot
