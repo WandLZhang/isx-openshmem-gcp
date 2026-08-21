@@ -20,6 +20,11 @@ RUNGS=("$@")
 
 PPN=${PPN:-192}
 KEYS=${KEYS:-455729166}
+# Capture a caller override once. Reading ISX64_TIMEOUT inside the loop does not work,
+# because the first rung exports it and every later ${ISX64_TIMEOUT:-...} then finds it
+# already set.
+USER_TIMEOUT=${ISX64_TIMEOUT:-}
+
 OUT=${ISX64_OUT:-$HOME/isx64_results}
 mkdir -p "$OUT"
 CSV="$OUT/ladder.csv"
@@ -34,13 +39,16 @@ for N in "${RUNGS[@]}"; do
 
   # The last rung holds the most nodes for the longest, so give it room to finish but
   # do not let a sick run retry five times across 143 nodes.
-  if [ "$N" -ge 100 ]; then
-    export ISX64_TIMEOUT=${ISX64_TIMEOUT:-3600}
-    ATTEMPTS=2
+  if [ -n "$USER_TIMEOUT" ]; then
+    T=$USER_TIMEOUT
+  elif [ "$N" -ge 100 ]; then
+    T=3600
   else
-    export ISX64_TIMEOUT=${ISX64_TIMEOUT:-1800}
-    ATTEMPTS=3
+    T=1800
   fi
+  export ISX64_TIMEOUT=$T
+
+  if [ "$N" -ge 100 ]; then ATTEMPTS=2; else ATTEMPTS=3; fi
 
   T0=$(date +%s)
   if bash "$HERE/run_isx64.sh" "$N" "$PPN" "$KEYS" "$ATTEMPTS" > "$OUT/ladder.$N.log" 2>&1; then

@@ -219,7 +219,7 @@ fabric.
 bash deploy/h4d/00_setup_project.sh          # org policy, quota, APIs
 # set h4d_cluster_size and zone in deploy/h4d/isx-slurm-h4d.yaml, then deploy it
 bash deploy/h4d/01_build_sos.sh              # libfabric + SOS, to /opt/isx on shared storage
-make -C src/cpu                              # builds isx64_win, put it at ~/bin/isx64win
+make -C src/cpu                              # builds bin/isx64_win
 bash deploy/h4d/run_isx64.sh <nodes> <pes_per_node> <keys_per_pe>
 ```
 
