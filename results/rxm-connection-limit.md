@@ -300,6 +300,30 @@ original claim was right; it just had no valid evidence behind it at the time.
 Use `LD_PRELOAD=<prefix>/lib/libsma.so.0` to force the intended runtime, and check with
 `ldd` before trusting any A/B between two SOS builds.
 
+## Upstream response
+
+Both filed 2026-08-15. [ofiwg/libfabric#12673](https://github.com/ofiwg/libfabric/issues/12673)
+and [Sandia-OpenSHMEM/SOS#1239](https://github.com/Sandia-OpenSHMEM/SOS/issues/1239).
+
+**The GID default will not change.** A libfabric maintainer answered on 2026-08-21: the
+preferred index depends on the NIC, so the provider cannot pick one. Their table:
+
+| index | mlx5, RoCE mode | irdma, `roce_ena=1` | mlx5, IB mode | irdma, `roce_ena=0` |
+|---:|---|---|---|---|
+| 0 | IPv6, IB/RoCE v1 | IPv6, RoCE v2 | IPv6, IB/RoCE v1 | MAC, RoCE v1 |
+| 1 | IPv6, RoCE v2 | IPv4, RoCE v2 | | |
+| 2 | IPv4, IB/RoCE v1 | | | |
+| 3 | IPv4, RoCE v2 | | | |
+
+So `FI_VERBS_GID_IDX` is the supported answer rather than a workaround for a bug, and the
+index to set depends on the NIC and its mode. On the H4D irdma NIC that is index 1.
+
+**The connection stall is still being triaged.** "We'll have someone look into the
+connection issue more."
+
+**SOS #1239 is assigned** and acknowledged, with no technical response yet. The STX blocker
+found later on psm3 is added to that thread, with the patch.
+
 ## Still open
 
 - Why RMA specifically fails over rxd when messaging works. Blockers 1 and 2 are solved,
